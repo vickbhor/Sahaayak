@@ -1,0 +1,92 @@
+{
+  "note": "TF-IDF + numpy cosine k-NN stand-in, NOT real multilingual embeddings or OpenSearch",
+  "split_test_accuracy": 0.9875,
+  "holdout_accuracy": 1.0,
+  "paraphrase_accuracy": 0.5833333333333334,
+  "paraphrase_rows": [
+    {
+      "input": "high fever, headache, body ache, chills, nausea",
+      "expected": "Typhoid",
+      "predicted": "Malaria",
+      "confidence": 0.8,
+      "match": false
+    },
+    {
+      "input": "high fever, joint pain, rash, pain behind the eyes, vomiting",
+      "expected": "Dengue",
+      "predicted": "Dengue",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "chest pain, sweating, breathlessness, pain radiating to left arm",
+      "expected": "Heart Attack",
+      "predicted": "Heart Attack",
+      "confidence": 0.6,
+      "match": true
+    },
+    {
+      "input": "cyclical fever, chills, sweating, headache, nausea",
+      "expected": "Malaria",
+      "predicted": "Malaria",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "cough, runny nose, sneezing, mild fever, sore throat",
+      "expected": "Common Cold",
+      "predicted": "Common Cold",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "wheezing, breathlessness, chest tightness, cough",
+      "expected": "Bronchial Asthma",
+      "predicted": "Pneumonia",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "yellowing of skin, yellowing of eyes, dark urine, fatigue",
+      "expected": "Jaundice",
+      "predicted": "Hepatitis D",
+      "confidence": 0.8,
+      "match": false
+    },
+    {
+      "input": "burning urination, frequent urination, lower abdominal pain",
+      "expected": "Urinary Tract Infection",
+      "predicted": "Drug Reaction",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "throbbing headache, nausea, sensitivity to light",
+      "expected": "Migraine",
+      "predicted": "Malaria",
+      "confidence": 0.8,
+      "match": false
+    },
+    {
+      "input": "itching, skin rash, red spots, dischromic patches",
+      "expected": "Fungal Infection",
+      "predicted": "Fungal Infection",
+      "confidence": 0.6,
+      "match": true
+    },
+    {
+      "input": "persistent cough, weight loss, night sweats, blood in sputum",
+      "expected": "Tuberculosis",
+      "predicted": "Tuberculosis",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "excessive thirst, frequent urination, fatigue, blurred vision",
+      "expected": "Diabetes",
+      "predicted": "Diabetes",
+      "confidence": 0.4,
+      "match": true
+    }
+  ]
+}

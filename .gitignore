@@ -1,0 +1,8 @@
+node_modules/
+venv/
+__pycache__/
+*.pyc
+backend/sahaayak.db
+backend/.env
+frontend/build/
+.DS_Store

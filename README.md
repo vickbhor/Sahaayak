@@ -103,7 +103,7 @@ Before you begin, ensure you have the following installed:
 
 **1. Clone the Repository**
 ```bash
-git clone https://github.com/vickbhor/Sahaayak.git
+git clone [https://github.com/vickbhor/Sahaayak.git](https://github.com/vickbhor/Sahaayak.git)
 cd Sahaayak
 ```
 
@@ -127,11 +127,6 @@ pip install -r requirements.txt
 ```
 
 *   Create a `.env` file in the `backend/` directory (refer to `.env.example`) and add your `GROQ_API_KEY`.
-*   Build the semantic index (this downloads the embedding model and populates OpenSearch):
-```bash
-python build_semantic_index.py 
-```
-
 *   Start the FastAPI server:
 ```bash
 python app.py
@@ -158,10 +153,11 @@ Sahaayak/
 │   ├── database.py                # SQLite models & ORM queries
 │   ├── semantic_classifier.py     # OpenSearch & vector retrieval logic
 │   ├── embedder.py                # Multilingual embedding generation
-│   ├── build_semantic_index.py    # Script to populate the vector database
 │   ├── groq_helpers.py            # Conversation & secondary LLM verification
 │   ├── hospitals.py               # OpenStreetMap hospital search integration
 │   ├── docker-compose.yml         # OpenSearch container configuration
+│   ├── .env.example               # Environment variables template
+│   ├── SETUP.md                   # Detailed setup instructions
 │   └── requirements.txt           # Python dependencies
 └── frontend/
     └── src/

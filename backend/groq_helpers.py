@@ -30,16 +30,28 @@ async def get_ai_response(messages, system_prompt: str) -> str:
         return "I'm having trouble understanding. Could you tell me more about your symptoms?"
 
 
-async def extract_symptoms_with_groq(messages) -> str:
+async def extract_symptoms_with_groq(messages, previous_condition: str = "") -> str:
     conversation_text = "\n".join(
         [f"{'Patient' if msg.role == 'user' else 'Assistant'}: {msg.content}" for msg in messages]
     )
 
-    system_prompt = """You are a medical symptom extractor for an Indian healthcare system.
+    # If the patient has an earlier triage report, tell the extractor about
+    # it. It should only USE this as context (e.g. "back pain" reads
+    # differently if their last report was spine-related) -- it must never
+    # invent a symptom the patient didn't actually mention this time.
+    history_line = (
+        f"\nContext: this patient has a previous triage record noting: \"{previous_condition}\". "
+        "Use this only as background context if the current symptoms are plausibly related "
+        "(e.g. a recurrence or follow-up). Do NOT add it as a symptom itself, and do NOT force "
+        "a connection if the current complaint looks unrelated."
+        if previous_condition else ""
+    )
+
+    system_prompt = f"""You are a medical symptom extractor for an Indian healthcare system.
 Analyze the conversation and extract ALL physical symptoms/complaints mentioned by the patient.
 Translate Hindi/Hinglish symptoms to clear English medical terms.
 Return ONLY a comma-separated list of symptoms. NO extra text. If no symptoms found, return "none"
-Example output: High fever, severe headache, body ache"""
+Example output: High fever, severe headache, body ache{history_line}"""
 
     try:
         response = await groq_client.chat.completions.create(

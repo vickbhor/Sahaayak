@@ -57,6 +57,8 @@ class TriageRequest(BaseModel):
     patient_age: Optional[str] = None
     patient_gender: Optional[str] = None
     preferred_language: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class TriageResponse(BaseModel):
@@ -65,6 +67,7 @@ class TriageResponse(BaseModel):
     analysis: Dict = {}
     report_id: Optional[int] = None
     suggest_report: bool = False
+    nearby_hospitals: Optional[List[Dict]] = None
 
 
 @app.post("/api/auth/register")
@@ -149,7 +152,17 @@ def format_vitals(vitals) -> str:
 async def process_triage(request: TriageRequest, current_user=Depends(auth.get_current_user)):
     try:
         if request.generate_report:
-            extracted_symptoms = await extract_symptoms_with_groq(request.messages)
+            # Pull the patient's most recent report (if any) so the extractor
+            # can read new symptoms in context (e.g. a recurrence / follow-up)
+            # instead of every conversation starting from zero.
+            previous_condition = ""
+            previous_reports = database.list_reports(current_user["id"])
+            if previous_reports:
+                last = previous_reports[0]
+                created = (last.get("created_at") or "")[:10]
+                previous_condition = f"{last.get('predicted_disease')} (reported {created})" if created else last.get("predicted_disease", "")
+
+            extracted_symptoms = await extract_symptoms_with_groq(request.messages, previous_condition=previous_condition)
 
             if not extracted_symptoms or extracted_symptoms.lower() == "none":
                 return TriageResponse(
@@ -180,6 +193,27 @@ async def process_triage(request: TriageRequest, current_user=Depends(auth.get_c
 
             reasoning_block = f"\nClinical Rationale:\n{reasoning}\n" if reasoning else ""
 
+            # For urgent cases, auto-fetch nearby hospitals if the client sent
+            # a location. If no location was sent, we just skip this quietly --
+            # nothing breaks, the patient just doesn't get the extra list.
+            nearby_hospitals = None
+            hospitals_block = ""
+            if urgency in ["CRITICAL", "HIGH"] and request.latitude is not None and request.longitude is not None:
+                try:
+                    nearby_hospitals = await hospitals.fetch_nearby_hospitals(
+                        request.latitude, request.longitude, limit=5
+                    )
+                except Exception as e:
+                    print(f"Auto hospital lookup failed: {e}")
+                    nearby_hospitals = None
+
+                if nearby_hospitals:
+                    lines = [
+                        f"- {h['name']} ({h['distance_km']} km){' - ' + h['phone'] if h.get('phone') else ''}"
+                        for h in nearby_hospitals
+                    ]
+                    hospitals_block = "\nNearby Hospitals:\n" + "\n".join(lines) + "\n"
+
             report = f"""MEDICAL TRIAGE REPORT
 
 Symptoms Reported:
@@ -192,7 +226,7 @@ Confidence: {conf * 100:.1f}%
 {reasoning_block}
 Recommendation:
 {recommendation}
-
+{hospitals_block}
 DISCLAIMER: This is an AI-assisted triage tool and NOT a substitute for professional medical advice."""
 
             transcript = [{"role": m.role, "content": m.content} for m in request.messages]
@@ -227,6 +261,7 @@ DISCLAIMER: This is an AI-assisted triage tool and NOT a substitute for professi
                     "home_remedies": home_remedies_list,
                 },
                 report_id=report_id,
+                nearby_hospitals=nearby_hospitals,
             )
 
         vitals_context = format_vitals(request.vitals)

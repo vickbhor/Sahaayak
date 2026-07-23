@@ -39,11 +39,12 @@ class SemanticMedicalClassifier:
     async def predict(self, extracted_symptoms: str) -> dict:
         if self.fallback_mode:
             return {
-                "predicted_disease": "Common Cold",
-                "urgency": escalate_for_red_flags(extracted_symptoms, "LOW"),
+                "predicted_disease": "Unable to classify (semantic engine offline)",
+                "urgency": escalate_for_red_flags(extracted_symptoms, "MEDIUM"),
                 "specialist": "General Physician",
-                "confidence": 0.5,
-                "reasoning": "Fallback classification mode active.",
+                "confidence": 0.0,
+                "reasoning": "Semantic classifier is offline (OpenSearch unreachable or index missing) — "
+                             "this is not a real diagnosis. Please consult a doctor.",
             }
 
         try:

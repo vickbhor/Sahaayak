@@ -4,6 +4,7 @@ import { Mail, Lock, User, Phone, UserPlus, Languages, Gauge, MapPin } from 'luc
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import Logo from '../components/Logo';
+import { getErrorMessage } from '../utils/errors';
 
 function Signup() {
   const { register } = useAuth();
@@ -31,7 +32,7 @@ function Signup() {
       await register(form.name, form.email, form.phone, form.password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not create account. Please try again.');
+      setError(getErrorMessage(err, 'Could not create account. Please try again.'));
     } finally {
       setLoading(false);
     }

@@ -97,6 +97,73 @@ Respond with exactly one word: READY or NOT_READY."""
         return False
 
 
+IMPOSSIBLE_LOCATION_TERMS = [
+    "mars", "moon", "jupiter", "saturn", "venus", "pluto", "neptune", "uranus",
+    "mercury", "outer space", "dusri planet", "doosri planet", "another planet",
+    "andromeda", "galaxy", "chand par", "mangal par", "mangal grah",
+]
+
+
+async def check_input_plausibility(latest_message: str, previous_bot_question: str = "") -> dict:
+    """
+    Two-level sanity check that runs BEFORE the main conversational reply is
+    generated. Catches physically impossible, joke, or off-topic answers
+    (e.g. "I'm on Mars") so the main assistant never gets a chance to build
+    an elaborate, escalating response on top of a fake premise.
+
+    Level 1 - deterministic keyword check (instant, free, 100% reliable for
+    the obvious cases like celestial bodies/space). Runs first so we don't
+    even spend an LLM call on the clearest cases.
+
+    Level 2 - a separate, cheap, low-token LLM classification call for
+    everything else. A dedicated check like this is far more reliable than
+    hoping one line buried in a big conversational system prompt gets
+    followed on every single turn.
+    """
+    text = (latest_message or "").lower()
+    if any(term in text for term in IMPOSSIBLE_LOCATION_TERMS):
+        return {"plausible": False, "level": "rule"}
+
+    system_prompt = """You are a fast sanity-checker for a medical triage chatbot.
+You will see the assistant's last question (if any) and the patient's latest reply.
+
+Decide if the patient's reply is a genuine, physically possible answer to a
+real health conversation - even if vague, incomplete, or in Hindi/Hinglish/English.
+
+Answer IMPLAUSIBLE only if the reply is clearly a joke, sarcasm, a physically
+impossible claim (e.g. being on another planet, being a fictional/non-human
+entity), or completely unrelated nonsense that no real patient reply would be.
+
+Answer PLAUSIBLE for everything else, including short answers like "na", "haan",
+"pata nahi", vague symptom descriptions, or emotional reactions - these are all
+normal real patient behavior, not implausible.
+
+Respond with exactly one word: PLAUSIBLE or IMPLAUSIBLE."""
+
+    user_prompt = (
+        f'Assistant\'s last question: "{previous_bot_question}"\n'
+        f'Patient\'s reply: "{latest_message}"'
+    )
+
+    try:
+        response = await groq_client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            model=GROQ_MODEL,
+            temperature=0,
+            max_tokens=5,
+        )
+        verdict = response.choices[0].message.content.strip().upper()
+        is_plausible = not verdict.startswith("IMPLAUSIBLE")
+        return {"plausible": is_plausible, "level": "llm"}
+    except Exception as e:
+        print(f"Groq Plausibility Check Error: {e}")
+        # Fail open: if the check itself errors out, don't block the conversation.
+        return {"plausible": True, "level": "llm_error"}
+
+
 def clean_json_block(text: str) -> str:
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -220,14 +287,32 @@ def escalate_for_red_flags(symptoms_text: str, urgency: str) -> str:
     return urgency
 
 
-async def verify_prediction_with_groq(symptoms_text: str, predicted_disease: str, confidence: float) -> dict:
-    system_prompt = """You are a clinical sanity-checker for a symptom-triage system.
+async def verify_prediction_with_groq(
+    symptoms_text: str,
+    predicted_disease: str,
+    confidence: float,
+    known_diseases: list = None,
+) -> dict:
+    grounding_line = ""
+    if known_diseases:
+        # Ground any "alternative" suggestion in our own verified disease
+        # reference table (disease_reference.py) instead of letting the
+        # model free-associate a diagnosis we have no urgency/specialist
+        # data for. Capped to keep the prompt small.
+        sample = ", ".join(known_diseases[:400])
+        grounding_line = (
+            "\nIf you propose an alternative, prefer a name from this known "
+            f"disease list when one clearly matches: {sample}. If nothing on "
+            "the list fits, you may still name an alternative outside the list."
+        )
+
+    system_prompt = f"""You are a clinical sanity-checker for a symptom-triage system.
 You will be given a patient's reported symptoms and a disease predicted by a
 retrieval-based classifier. Decide if the prediction is plausible given the
 symptoms.
 
 Return ONLY valid JSON, no markdown fences, in this exact shape:
-{"confirmed": true or false, "alternative": "<disease name or null>", "urgency": "<LOW|MEDIUM|HIGH|CRITICAL>", "reasoning": "<one short sentence>"}
+{{"confirmed": true or false, "alternative": "<disease name or null>", "urgency": "<LOW|MEDIUM|HIGH|CRITICAL>", "reasoning": "<one short sentence>"}}
 
 If you agree the prediction is plausible, set confirmed=true, alternative=null,
 and still set "urgency" to your own best-judgment urgency for these symptoms
@@ -239,7 +324,7 @@ don't nitpick borderline calls.
 
 Err toward a higher urgency whenever symptoms include red flags such as numbness,
 weakness, difficulty moving, chest pain, breathing difficulty, sudden neurological
-symptoms, or loss of bladder/bowel control - these should never be graded LOW."""
+symptoms, or loss of bladder/bowel control - these should never be graded LOW.{grounding_line}"""
 
     user_prompt = f'Symptoms: "{symptoms_text}"\nPredicted disease: {predicted_disease}\nModel confidence: {confidence:.2f}'
 

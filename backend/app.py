@@ -13,6 +13,7 @@ from groq_helpers import (
     extract_symptoms_with_groq,
     extract_medicines_with_groq,
     assess_conversation_readiness,
+    check_input_plausibility,
 )
 
 load_dotenv()
@@ -231,6 +232,30 @@ DISCLAIMER: This is an AI-assisted triage tool and NOT a substitute for professi
         vitals_context = format_vitals(request.vitals)
         vitals_line = f"Patient vitals on record: {vitals_context}." if vitals_context else ""
 
+        # --- Plausibility gate: runs BEFORE the main reply is generated ---
+        # Catches jokes/impossible claims (e.g. "I'm on Mars") so the main
+        # assistant never sees them and can't build an escalating scenario
+        # on top of a fake premise.
+        latest_user_msg = next(
+            (m.content for m in reversed(request.messages) if m.role == "user"), ""
+        )
+        previous_bot_msg = next(
+            (m.content for m in reversed(request.messages[:-1]) if m.role != "user"), ""
+        )
+        if latest_user_msg:
+            plausibility = await check_input_plausibility(latest_user_msg, previous_bot_msg)
+            if not plausibility.get("plausible", True):
+                clarify_replies = {
+                    "en": "I didn't quite follow that — could you answer in simple, real terms?",
+                    "hi": "मुझे यह समझ नहीं आया — क्या आप सीधे और सही शब्दों में बता सकते हैं?",
+                    "hinglish": "Yeh samajh nahi aaya - seedha aur real jawab de sakte hain?",
+                }
+                lang_key = (request.preferred_language or "en").lower()
+                return TriageResponse(
+                    reply=clarify_replies.get(lang_key, clarify_replies["en"]),
+                    is_report=False,
+                )
+
         has_symptoms = await assess_conversation_readiness(request.messages)
         wind_down_line = (
             "The patient has already shared a reasonable amount of detail. Do not keep asking new "
@@ -264,6 +289,17 @@ This app does not currently connect patients to a live human doctor in real time
 feature yet. Never promise to "call a doctor for you", say a doctor "will come" or "will see you now",
 or imply any live handoff is happening. If the case sounds serious, say so plainly and tell them to see
 a doctor or go to a hospital in person/on their own - do not claim the app will arrange it for them.
+
+If a patient's answer is physically impossible, clearly a joke, or doesn't make sense as a real answer
+to the question you just asked (for example, claiming to be on another planet, a fictional location, or
+giving an answer unrelated to what was asked), do NOT build a scenario on top of it or treat it as a real
+fact. Just say lightly that you didn't quite follow, and ask them to answer in simple, real terms - do not
+escalate urgency or invent elaborate hypothetical advice based on an answer you don't believe is genuine.
+
+Never invent a causal or predictive relationship between two symptoms/answers unless it is well-established
+clinically (e.g. do NOT say things like "your throat feels less dry, so your headache should improve soon" -
+those are unrelated and that claim is false and could mislead the patient). Just acknowledge what they told
+you factually, without speculating about how one answer affects another symptom's outcome.
 {language_line}
 {vitals_line}
 {wind_down_line}

@@ -4,6 +4,7 @@ import { Mail, Lock, LogIn, Languages, Gauge, MapPin } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import Logo from '../components/Logo';
+import { getErrorMessage } from '../utils/errors';
 
 function Login() {
   const { login } = useAuth();
@@ -22,7 +23,7 @@ function Login() {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed. Please check your connection and try again.');
+      setError(getErrorMessage(err, 'Login failed. Please check your connection and try again.'));
     } finally {
       setLoading(false);
     }

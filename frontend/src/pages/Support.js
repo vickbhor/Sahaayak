@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, MapPin, Navigation, Search, Phone, Building2, AlertCircle, Copy } from 'lucide-react';
 import client from '../api/client';
 import { useLanguage } from '../context/LanguageContext';
+import { getErrorMessage } from '../utils/errors';
 
 function Support() {
   const { t } = useLanguage();
@@ -57,7 +58,7 @@ function Support() {
       setHospitals(res.data.results || []);
       setStatus('done');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not find that location. Try a nearby city or landmark.');
+      setError(getErrorMessage(err, 'Could not find that location. Try a nearby city or landmark.'));
       setStatus('error');
     }
   };

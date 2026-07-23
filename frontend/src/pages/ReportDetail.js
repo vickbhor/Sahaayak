@@ -200,7 +200,17 @@ function ReportDetail() {
               <span className="rx-symbol">℞</span>
               <div className="rx-symbol-content">
                 <p className="label">{t('predicted_condition')}</p>
-                <h2 className="disease-name">{report.predicted_disease}</h2>
+                <h2 className="disease-name">
+                  {report.confidence <= 0.6 && report.urgency !== 'HIGH' && report.urgency !== 'CRITICAL'
+                    ? `${t('possible_prefix') || 'Possible'}: ${report.predicted_disease}`
+                    : report.predicted_disease}
+                </h2>
+                {report.confidence <= 0.6 && report.urgency !== 'HIGH' && report.urgency !== 'CRITICAL' && (
+                  <p className="low-confidence-note">
+                    {t('low_confidence_note') ||
+                      'Confidence is below 60% — this is a best-guess match against a limited set of known conditions, not a confirmed diagnosis. Please see a doctor for confirmation.'}
+                  </p>
+                )}
                 <div className="symptoms-list">
                   <p className="label">{t('primary_symptoms')}</p>
                   <p>{report.symptoms_extracted}</p>

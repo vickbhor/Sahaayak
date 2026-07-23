@@ -3,6 +3,7 @@ from collections import Counter
 
 from embedder import MultilingualEmbedder
 from groq_helpers import verify_prediction_with_groq, escalate_for_red_flags, URGENCY_RANK
+from disease_reference import KNOWN_DISEASE_NAMES, lookup as lookup_disease
 
 INDEX_NAME = os.getenv("OPENSEARCH_INDEX", "sahaayak-symptoms")
 K_NEIGHBORS = int(os.getenv("SEMANTIC_K", "5"))
@@ -69,7 +70,9 @@ class SemanticMedicalClassifier:
             urgency = top_hit["_source"]["urgency"]
             specialist = top_hit["_source"]["specialist"]
 
-            verified = await verify_prediction_with_groq(extracted_symptoms, top_disease, confidence)
+            verified = await verify_prediction_with_groq(
+                extracted_symptoms, top_disease, confidence, KNOWN_DISEASE_NAMES
+            )
             reasoning = verified.get("reasoning", "")
 
             if verified.get("confirmed") is False and verified.get("alternative"):
@@ -77,6 +80,16 @@ class SemanticMedicalClassifier:
                 confidence = min(confidence, 0.5)
                 if verified.get("urgency"):
                     urgency = verified["urgency"]
+
+                # Cross-check the alternative against our verified reference
+                # table. If Groq named a disease we have canonical data for,
+                # trust that data for specialist routing and never let the
+                # urgency sit BELOW the reference's known floor for it.
+                ref = lookup_disease(top_disease)
+                if ref:
+                    specialist = ref.get("specialist", specialist)
+                    if URGENCY_RANK.get(ref.get("urgency"), 0) > URGENCY_RANK.get(urgency, 0):
+                        urgency = ref["urgency"]
             elif verified.get("urgency"):
                 if URGENCY_RANK.get(verified["urgency"], 0) > URGENCY_RANK.get(urgency, 0):
                     urgency = verified["urgency"]

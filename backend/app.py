@@ -13,7 +13,6 @@ from groq_helpers import (
     extract_symptoms_with_groq,
     extract_medicines_with_groq,
     assess_conversation_readiness,
-    verify_prediction_with_groq,
 )
 
 load_dotenv()
@@ -162,13 +161,9 @@ async def process_triage(request: TriageRequest, current_user=Depends(auth.get_c
             conf = prediction["confidence"]
             urgency = prediction["urgency"]
             specialist = prediction["specialist"]
+            reasoning = prediction.get("reasoning", "")
 
-            verification = await verify_prediction_with_groq(extracted_symptoms, disease, conf)
-            if not verification.get("confirmed", True) and verification.get("alternative"):
-                disease = verification.get("alternative")
-                conf = 0.85 
-
-            remedy_data = await extract_medicines_with_groq(request.messages, disease, urgency)
+            remedy_data = await extract_medicines_with_groq(request.messages, disease, urgency, language_key=(request.preferred_language or ""))
             medicines_list = remedy_data.get("medicines", [])
             home_remedies_list = remedy_data.get("home_remedies", [])
 
@@ -182,6 +177,8 @@ async def process_triage(request: TriageRequest, current_user=Depends(auth.get_c
                 assessment = f"POSSIBLE {disease} (mixed symptoms)"
                 recommendation = "Please get a professional medical checkup."
 
+            reasoning_block = f"\nClinical Rationale:\n{reasoning}\n" if reasoning else ""
+
             report = f"""MEDICAL TRIAGE REPORT
 
 Symptoms Reported:
@@ -191,7 +188,7 @@ Assessment:
 {assessment}
 Urgency Level: {urgency}
 Confidence: {conf * 100:.1f}%
-
+{reasoning_block}
 Recommendation:
 {recommendation}
 
@@ -212,6 +209,7 @@ DISCLAIMER: This is an AI-assisted triage tool and NOT a substitute for professi
                 medicines=remedy_data,
                 vitals=request.vitals or {},
                 transcript=transcript,
+                reasoning=reasoning,
             )
 
             return TriageResponse(
@@ -223,6 +221,7 @@ DISCLAIMER: This is an AI-assisted triage tool and NOT a substitute for professi
                     "urgency": urgency,
                     "specialist": specialist,
                     "confidence": conf,
+                    "reasoning": reasoning,
                     "medicines": medicines_list,
                     "home_remedies": home_remedies_list,
                 },
@@ -255,6 +254,16 @@ If they greet you, greet back warmly. Then ask about their health.
 If they describe symptoms, acknowledge and ask clarifying questions.
 Never mention reports, buttons, or that you are conducting a triage - just be a friendly helper.
 Never include any bracketed text or instructions in your reply - respond only in natural conversational language.
+
+You are a TEXT CHAT assistant only. You have no body, cannot see or hear the patient, cannot travel
+to them, and cannot physically examine them or take a reading yourself. Never say things like "I'm
+coming to you", "main aapke paas aa raha hoon", "I'll check your temperature", or any phrase implying
+physical presence or action on your part. If you need a vital (temperature, BP, pulse, etc.), ask the
+patient to measure it themselves with their own thermometer/device and tell you the number.
+This app does not currently connect patients to a live human doctor in real time - there is no such
+feature yet. Never promise to "call a doctor for you", say a doctor "will come" or "will see you now",
+or imply any live handoff is happening. If the case sounds serious, say so plainly and tell them to see
+a doctor or go to a hospital in person/on their own - do not claim the app will arrange it for them.
 {language_line}
 {vitals_line}
 {wind_down_line}

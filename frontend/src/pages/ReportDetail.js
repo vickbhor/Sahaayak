@@ -13,6 +13,7 @@ function ReportDetail() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showRationale, setShowRationale] = useState(false); // Trust Layer State
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -212,6 +213,36 @@ function ReportDetail() {
                 </div>
               </div>
             </div>
+
+            {/* --- TRUST LAYER UI --- */}
+            {report.reasoning && (
+              <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+                  <button 
+                      onClick={() => setShowRationale(!showRationale)}
+                      style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#0066ff',
+                          cursor: 'pointer',
+                          fontWeight: '600',
+                          padding: '0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '0.95rem'
+                      }}
+                  >
+                      {showRationale ? '▼ Hide AI Clinical Rationale' : '▶ View AI Clinical Rationale'}
+                  </button>
+                  
+                  {showRationale && (
+                      <div style={{ marginTop: '10px', padding: '12px', borderLeft: '3px solid #0066ff', backgroundColor: '#ffffff', fontSize: '0.95rem', color: '#495057', lineHeight: '1.5' }}>
+                          <em>{report.reasoning}</em>
+                      </div>
+                  )}
+              </div>
+            )}
+            {/* --- END TRUST LAYER UI --- */}
 
             {(report.urgency === 'CRITICAL' || report.urgency === 'HIGH') && (
               <div className="emergency-alert mt-20">

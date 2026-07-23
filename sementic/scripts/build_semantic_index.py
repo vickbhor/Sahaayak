@@ -15,8 +15,12 @@ LABELS = "phase1_artifacts/labels.json"
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
 OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 OPENSEARCH_USER = os.getenv("OPENSEARCH_USER", "admin")
-# Yahan password update kar diya gaya hai
-OPENSEARCH_PASS = os.getenv("OPENSEARCH_PASS", "Sahaayak_2026!")
+OPENSEARCH_PASS = os.getenv("OPENSEARCH_PASS")
+if not OPENSEARCH_PASS:
+    raise RuntimeError(
+        "OPENSEARCH_PASS environment variable is not set. Set it in your .env file - "
+        "do not hardcode a default here, this file is committed to a public repo."
+    )
 INDEX_NAME = os.getenv("OPENSEARCH_INDEX", "sahaayak-symptoms")
 K = int(os.getenv("SEMANTIC_K", "5"))
 

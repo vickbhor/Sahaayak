@@ -1,41 +1,27 @@
 import sqlite3
 import json
-import os
-from datetime import datetime, timezone
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sahaayak.db")
-
-
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
-
-
-def now_iso():
-    return datetime.now(timezone.utc).isoformat()
+DB_NAME = "sahaayak.db"
 
 
 def init_db():
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
+            email TEXT UNIQUE NOT NULL,
             phone TEXT,
             password_hash TEXT NOT NULL,
             salt TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-        """
-    )
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS reports (
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS triage_reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             patient_name TEXT,
@@ -49,69 +35,69 @@ def init_db():
             medicines TEXT,
             vitals TEXT,
             transcript TEXT,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
         )
-        """
-    )
+    ''')
+
+    cursor.execute("PRAGMA table_info(triage_reports)")
+    columns = [column[1] for column in cursor.fetchall()]
+
+    if "reasoning" not in columns:
+        cursor.execute("ALTER TABLE triage_reports ADD COLUMN reasoning TEXT DEFAULT ''")
+
     conn.commit()
     conn.close()
 
 
-def create_user(name, email, phone, password_hash, salt):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO users (name, email, phone, password_hash, salt, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (name, email, phone, password_hash, salt, now_iso()),
+def create_user(name: str, email: str, phone: str, pwd_hash: str, salt: str) -> int:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO users (name, email, phone, password_hash, salt) VALUES (?, ?, ?, ?, ?)",
+        (name, email, phone, pwd_hash, salt),
     )
+    user_id = cursor.lastrowid
     conn.commit()
-    user_id = cur.lastrowid
     conn.close()
     return user_id
 
 
-def get_user_by_email(email):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE email = ?", (email,))
-    row = cur.fetchone()
-    conn.close()
-    return dict(row) if row else None
-
-
-def get_user_by_id(user_id):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    row = cur.fetchone()
+def get_user_by_email(email: str) -> dict:
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+    row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
 
 
 def create_report(
-    user_id,
-    patient_name,
-    patient_age,
-    patient_gender,
-    symptoms_extracted,
-    predicted_disease,
-    urgency,
-    specialist,
-    confidence,
-    medicines,
-    vitals,
-    transcript,
-):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO reports
-        (user_id, patient_name, patient_age, patient_gender, symptoms_extracted,
-         predicted_disease, urgency, specialist, confidence, medicines, vitals, transcript, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
+    user_id: int,
+    patient_name: str,
+    patient_age: str,
+    patient_gender: str,
+    symptoms_extracted: str,
+    predicted_disease: str,
+    urgency: str,
+    specialist: str,
+    confidence: float,
+    medicines: dict,
+    vitals: dict,
+    transcript: list,
+    reasoning: str = "",
+) -> int:
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute(
+        '''
+        INSERT INTO triage_reports (
+            user_id, patient_name, patient_age, patient_gender,
+            symptoms_extracted, predicted_disease, urgency, specialist,
+            confidence, medicines, vitals, transcript, reasoning
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''',
         (
             user_id,
             patient_name,
@@ -122,82 +108,53 @@ def create_report(
             urgency,
             specialist,
             confidence,
-            json.dumps(medicines if medicines is not None else {"medicines": [], "home_remedies": []}),
-            json.dumps(vitals or {}),
-            json.dumps(transcript or []),
-            now_iso(),
+            json.dumps(medicines),
+            json.dumps(vitals),
+            json.dumps(transcript),
+            reasoning,
         ),
     )
+    report_id = cursor.lastrowid
     conn.commit()
-    report_id = cur.lastrowid
     conn.close()
     return report_id
 
 
-def list_reports(user_id):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT id, patient_name, patient_age, patient_gender, predicted_disease,
-               urgency, specialist, confidence, created_at
-        FROM reports WHERE user_id = ? ORDER BY id DESC
-        """,
-        (user_id,),
-    )
-    rows = [dict(r) for r in cur.fetchall()]
+def list_reports(user_id: int) -> list:
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM triage_reports WHERE user_id = ? ORDER BY id DESC", (user_id,))
+    rows = cursor.fetchall()
     conn.close()
-    return rows
+
+    reports = []
+    for r in rows:
+        item = dict(r)
+        item["medicines"] = json.loads(item["medicines"]) if item.get("medicines") else {}
+        item["vitals"] = json.loads(item["vitals"]) if item.get("vitals") else {}
+        item["transcript"] = json.loads(item["transcript"]) if item.get("transcript") else []
+        if "reasoning" not in item or item["reasoning"] is None:
+            item["reasoning"] = ""
+        reports.append(item)
+    return reports
 
 
-def get_report(report_id, user_id):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM reports WHERE id = ? AND user_id = ?", (report_id, user_id))
-    row = cur.fetchone()
+def get_report(report_id: int, user_id: int) -> dict:
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM triage_reports WHERE id = ? AND user_id = ?", (report_id, user_id))
+    row = cursor.fetchone()
     conn.close()
+
     if not row:
         return None
-    data = dict(row)
-    raw_medicines = json.loads(data["medicines"]) if data["medicines"] else {"medicines": [], "home_remedies": []}
-    if isinstance(raw_medicines, list):
-        raw_medicines = {"medicines": raw_medicines, "home_remedies": []}
-    data["medicines"] = raw_medicines.get("medicines", [])
-    data["home_remedies"] = raw_medicines.get("home_remedies", [])
-    data["vitals"] = json.loads(data["vitals"]) if data["vitals"] else {}
-    data["transcript"] = json.loads(data["transcript"]) if data["transcript"] else []
-    return data
 
-
-def list_medications(user_id):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT id, predicted_disease, urgency, medicines, created_at
-        FROM reports WHERE user_id = ? ORDER BY id DESC
-        """,
-        (user_id,),
-    )
-    rows = cur.fetchall()
-    conn.close()
-    result = []
-    for r in rows:
-        raw = json.loads(r["medicines"]) if r["medicines"] else {"medicines": [], "home_remedies": []}
-        if isinstance(raw, list):
-            raw = {"medicines": raw, "home_remedies": []}
-        for category, entries in (("medicine", raw.get("medicines", [])), ("home_remedy", raw.get("home_remedies", []))):
-            for m in entries:
-                result.append(
-                    {
-                        "report_id": r["id"],
-                        "condition": r["predicted_disease"],
-                        "urgency": r["urgency"],
-                        "date": r["created_at"],
-                        "type": category,
-                        "name": m.get("name"),
-                        "purpose": m.get("purpose"),
-                        "note": m.get("note"),
-                    }
-                )
-    return result
+    item = dict(row)
+    item["medicines"] = json.loads(item["medicines"]) if item.get("medicines") else {}
+    item["vitals"] = json.loads(item["vitals"]) if item.get("vitals") else {}
+    item["transcript"] = json.loads(item["transcript"]) if item.get("transcript") else []
+    if "reasoning" not in item or item["reasoning"] is None:
+        item["reasoning"] = ""
+    return item

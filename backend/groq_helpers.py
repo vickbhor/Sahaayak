@@ -106,12 +106,30 @@ def clean_json_block(text: str) -> str:
     return cleaned.strip()
 
 
-async def extract_medicines_with_groq(messages, predicted_disease: str, urgency: str) -> dict:
+REMEDY_LANGUAGE_INSTRUCTIONS = {
+    "en": "Write every \"name\", \"purpose\", and \"note\" in clear, plain English.",
+    "hi": "Write every \"name\", \"purpose\", and \"note\" in Hindi, in Devanagari script "
+          "(e.g. \"पानी अधिक मात्रा में पिएं\"), using correct, natural grammar - not a "
+          "word-for-word transliteration.",
+    "hinglish": "Write every \"name\", \"purpose\", and \"note\" in short, NATURAL Hinglish, the way "
+                "a person actually types it casually, e.g. \"Zyada paani piyein\" or \"Garam paani se "
+                "gargle karein\". Each \"name\" must be a single clean 2-5 word phrase - never repeat "
+                "or duplicate a verb (e.g. do not write both 'pina' and 'peele' together), and never "
+                "produce a phrase that could be misread as an unrelated word (e.g. keep 'pila'/'pi le' "
+                "clearly meaning 'drink it', not 'peela' meaning 'yellow').",
+}
+REMEDY_LANGUAGE_DEFAULT = "en"
+
+
+async def extract_medicines_with_groq(messages, predicted_disease: str, urgency: str, language_key: str = "") -> dict:
     conversation_text = "\n".join(
         [f"{'Patient' if msg.role == 'user' else 'Assistant'}: {msg.content}" for msg in messages]
     )
 
-    system_prompt = """You are a cautious clinical assistant for a rural Indian telehealth triage app.
+    language_key = (language_key or "").lower()
+    language_instruction = REMEDY_LANGUAGE_INSTRUCTIONS.get(language_key, REMEDY_LANGUAGE_INSTRUCTIONS[REMEDY_LANGUAGE_DEFAULT])
+
+    system_prompt = f"""You are a cautious clinical assistant for a rural Indian telehealth triage app.
 Based on the patient conversation and the predicted condition, produce two separate lists:
 
 1. "medicines": general over-the-counter medicine categories only (e.g. "Paracetamol (OTC)",
@@ -122,8 +140,14 @@ Based on the patient conversation and the predicted condition, produce two separ
 If urgency is CRITICAL or HIGH, keep both lists short and clearly secondary to seeking immediate
 medical attention - do not imply self-medication replaces a doctor visit.
 
+LANGUAGE: {language_instruction}
+Regardless of language, each "name" field is a short LABEL (2-5 words), not a full sentence, and
+must read naturally to a native speaker - re-read it before answering and reject anything that
+sounds redundant, garbled, or ambiguous. Put any extra detail in "purpose"/"note" instead of
+stuffing it into "name".
+
 Return ONLY valid JSON with no markdown fences and no extra text, in this exact shape:
-{"medicines": [{"name": "...", "purpose": "...", "note": "..."}], "home_remedies": [{"name": "...", "purpose": "...", "note": "..."}]}
+{{"medicines": [{{"name": "...", "purpose": "...", "note": "..."}}], "home_remedies": [{{"name": "...", "purpose": "...", "note": "..."}}]}}
 Each list should have at most 4 items. If nothing appropriate applies, return an empty list for it."""
 
     user_prompt = f"""Predicted condition: {predicted_disease}
@@ -174,6 +198,28 @@ Conversation:
         return empty_result
 
 
+RED_FLAG_TERMS = [
+    "numbness", "numb", "weakness", "difficulty with movement", "can't move",
+    "cannot move", "paralysis", "loss of bladder", "loss of bowel",
+    "bladder control", "bowel control", "chest pain", "difficulty breathing",
+    "shortness of breath", "can't breathe", "cannot breathe", "slurred speech",
+    "one-sided weakness", "sudden vision loss", "loss of vision", "fainting",
+    "loss of consciousness", "unconscious", "severe bleeding", "coughing blood",
+    "blood in vomit", "suicidal", "seizure",
+]
+
+URGENCY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+
+
+def escalate_for_red_flags(symptoms_text: str, urgency: str) -> str:
+    text = (symptoms_text or "").lower()
+    if any(term in text for term in RED_FLAG_TERMS):
+        current_rank = URGENCY_RANK.get((urgency or "LOW").upper(), 0)
+        if current_rank < URGENCY_RANK["HIGH"]:
+            return "HIGH"
+    return urgency
+
+
 async def verify_prediction_with_groq(symptoms_text: str, predicted_disease: str, confidence: float) -> dict:
     system_prompt = """You are a clinical sanity-checker for a symptom-triage system.
 You will be given a patient's reported symptoms and a disease predicted by a
@@ -181,12 +227,19 @@ retrieval-based classifier. Decide if the prediction is plausible given the
 symptoms.
 
 Return ONLY valid JSON, no markdown fences, in this exact shape:
-{"confirmed": true or false, "alternative": "<disease name or null>", "reasoning": "<one short sentence>"}
+{"confirmed": true or false, "alternative": "<disease name or null>", "urgency": "<LOW|MEDIUM|HIGH|CRITICAL>", "reasoning": "<one short sentence>"}
 
-If you agree the prediction is plausible, set confirmed=true and alternative=null.
-If a different diagnosis clearly fits the symptoms better, set confirmed=false
-and name that alternative. Only disagree on a clear mismatch -- don't nitpick
-borderline calls."""
+If you agree the prediction is plausible, set confirmed=true, alternative=null,
+and still set "urgency" to your own best-judgment urgency for these symptoms
+(reason about it yourself, do not just echo the model's confidence).
+If a different diagnosis clearly fits the symptoms better, set confirmed=false,
+name that alternative, and set "urgency" to the correct urgency level FOR THAT
+ALTERNATIVE diagnosis, not the original one. Only disagree on a clear mismatch --
+don't nitpick borderline calls.
+
+Err toward a higher urgency whenever symptoms include red flags such as numbness,
+weakness, difficulty moving, chest pain, breathing difficulty, sudden neurological
+symptoms, or loss of bladder/bowel control - these should never be graded LOW."""
 
     user_prompt = f'Symptoms: "{symptoms_text}"\nPredicted disease: {predicted_disease}\nModel confidence: {confidence:.2f}'
 
@@ -203,11 +256,15 @@ borderline calls."""
         raw = response.choices[0].message.content.strip()
         cleaned = clean_json_block(raw)
         parsed = json.loads(cleaned)
+        urgency = str(parsed.get("urgency", "")).upper()
+        if urgency not in URGENCY_RANK:
+            urgency = None
         return {
             "confirmed": bool(parsed.get("confirmed", True)),
             "alternative": parsed.get("alternative"),
+            "urgency": urgency,
             "reasoning": parsed.get("reasoning", ""),
         }
     except Exception as e:
         print(f"Groq Verification Error: {e}")
-        return {"confirmed": True, "alternative": None, "reasoning": "verification unavailable"}
+        return {"confirmed": True, "alternative": None, "urgency": None, "reasoning": "verification unavailable"}

@@ -125,6 +125,10 @@ Before you begin, ensure you have the following installed:
     pip install -r requirements.txt
 
 * Create a `.env` file in the `backend/` directory (refer to `.env.example`) and add your `GROQ_API_KEY` and database configurations.
+* Build the semantic index (Required to populate OpenSearch):
+
+    python build_semantic_index.py
+
 * Start the FastAPI server:
 
     python app.py
@@ -150,6 +154,7 @@ Before you begin, ensure you have the following installed:
     │   ├── database.py                # SQLite models & ORM queries
     │   ├── semantic_classifier.py     # OpenSearch & vector retrieval logic
     │   ├── embedder.py                # Multilingual embedding generation
+    │   ├── build_semantic_index.py    # Script to populate the vector database
     │   ├── groq_helpers.py            # Conversation, reasoning extractor & verification
     │   ├── hospitals.py               # OpenStreetMap hospital search integration
     │   ├── models/                    # ML model artifacts (hingrobert_model)

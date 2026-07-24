@@ -1,0 +1,207 @@
+{
+  "0": {
+    "name": "AIDS",
+    "urgency": "CRITICAL",
+    "specialist": "Infectious Disease Specialist"
+  },
+  "1": {
+    "name": "Acne",
+    "urgency": "LOW",
+    "specialist": "Dermatologist"
+  },
+  "2": {
+    "name": "Alcoholic Hepatitis",
+    "urgency": "HIGH",
+    "specialist": "Hepatologist / Gastroenterologist"
+  },
+  "3": {
+    "name": "Allergy",
+    "urgency": "MEDIUM",
+    "specialist": "Allergist"
+  },
+  "4": {
+    "name": "Arthritis",
+    "urgency": "LOW",
+    "specialist": "Rheumatologist"
+  },
+  "5": {
+    "name": "Bronchial Asthma",
+    "urgency": "HIGH",
+    "specialist": "Pulmonologist"
+  },
+  "6": {
+    "name": "Cervical Spondylosis",
+    "urgency": "LOW",
+    "specialist": "Orthopedist / Neurologist"
+  },
+  "7": {
+    "name": "Chicken Pox",
+    "urgency": "MEDIUM",
+    "specialist": "General Physician / Dermatologist"
+  },
+  "8": {
+    "name": "Chronic Cholestasis",
+    "urgency": "HIGH",
+    "specialist": "Hepatologist"
+  },
+  "9": {
+    "name": "Common Cold",
+    "urgency": "LOW",
+    "specialist": "General Physician"
+  },
+  "10": {
+    "name": "Dengue",
+    "urgency": "CRITICAL",
+    "specialist": "Infectious Disease Specialist / ER"
+  },
+  "11": {
+    "name": "Diabetes",
+    "urgency": "MEDIUM",
+    "specialist": "Endocrinologist"
+  },
+  "12": {
+    "name": "Dimorphic Hemorrhoids",
+    "urgency": "MEDIUM",
+    "specialist": "Proctologist / General Surgeon"
+  },
+  "13": {
+    "name": "Drug Reaction",
+    "urgency": "HIGH",
+    "specialist": "Allergist / ER"
+  },
+  "14": {
+    "name": "Fungal Infection",
+    "urgency": "LOW",
+    "specialist": "Dermatologist"
+  },
+  "15": {
+    "name": "Gastroenteritis",
+    "urgency": "MEDIUM",
+    "specialist": "General Physician / Gastroenterologist"
+  },
+  "16": {
+    "name": "Gastroesophageal Reflux Disease",
+    "urgency": "LOW",
+    "specialist": "Gastroenterologist"
+  },
+  "17": {
+    "name": "Heart Attack",
+    "urgency": "CRITICAL",
+    "specialist": "Cardiologist / ER"
+  },
+  "18": {
+    "name": "Hepatitis A",
+    "urgency": "MEDIUM",
+    "specialist": "Hepatologist / General Physician"
+  },
+  "19": {
+    "name": "Hepatitis B",
+    "urgency": "HIGH",
+    "specialist": "Hepatologist"
+  },
+  "20": {
+    "name": "Hepatitis C",
+    "urgency": "HIGH",
+    "specialist": "Hepatologist"
+  },
+  "21": {
+    "name": "Hepatitis D",
+    "urgency": "HIGH",
+    "specialist": "Hepatologist"
+  },
+  "22": {
+    "name": "Hepatitis E",
+    "urgency": "MEDIUM",
+    "specialist": "Hepatologist / General Physician"
+  },
+  "23": {
+    "name": "Hypertension",
+    "urgency": "HIGH",
+    "specialist": "Cardiologist"
+  },
+  "24": {
+    "name": "Hyperthyroidism",
+    "urgency": "MEDIUM",
+    "specialist": "Endocrinologist"
+  },
+  "25": {
+    "name": "Hypoglycemia",
+    "urgency": "HIGH",
+    "specialist": "Endocrinologist / ER"
+  },
+  "26": {
+    "name": "Hypothyroidism",
+    "urgency": "LOW",
+    "specialist": "Endocrinologist"
+  },
+  "27": {
+    "name": "Impetigo",
+    "urgency": "MEDIUM",
+    "specialist": "Dermatologist / Pediatrician"
+  },
+  "28": {
+    "name": "Jaundice",
+    "urgency": "HIGH",
+    "specialist": "Hepatologist"
+  },
+  "29": {
+    "name": "Malaria",
+    "urgency": "HIGH",
+    "specialist": "Infectious Disease Specialist"
+  },
+  "30": {
+    "name": "Migraine",
+    "urgency": "MEDIUM",
+    "specialist": "Neurologist"
+  },
+  "31": {
+    "name": "Osteoarthritis",
+    "urgency": "LOW",
+    "specialist": "Orthopedist"
+  },
+  "32": {
+    "name": "Paralysis (Brain Hemorrhage)",
+    "urgency": "CRITICAL",
+    "specialist": "Neurologist / ER"
+  },
+  "33": {
+    "name": "Peptic Ulcer Disease",
+    "urgency": "MEDIUM",
+    "specialist": "Gastroenterologist"
+  },
+  "34": {
+    "name": "Pneumonia",
+    "urgency": "HIGH",
+    "specialist": "Pulmonologist"
+  },
+  "35": {
+    "name": "Psoriasis",
+    "urgency": "LOW",
+    "specialist": "Dermatologist"
+  },
+  "36": {
+    "name": "Tuberculosis",
+    "urgency": "HIGH",
+    "specialist": "Pulmonologist / Infectious Disease"
+  },
+  "37": {
+    "name": "Typhoid",
+    "urgency": "HIGH",
+    "specialist": "General Physician / Infectious Disease"
+  },
+  "38": {
+    "name": "Urinary Tract Infection",
+    "urgency": "MEDIUM",
+    "specialist": "Urologist / General Physician"
+  },
+  "39": {
+    "name": "Varicose Veins",
+    "urgency": "LOW",
+    "specialist": "Vascular Surgeon"
+  },
+  "40": {
+    "name": "Vertigo (Benign Paroxysmal Positional)",
+    "urgency": "LOW",
+    "specialist": "ENT / Neurologist"
+  }
+}

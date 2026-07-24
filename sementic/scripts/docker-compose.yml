@@ -1,0 +1,29 @@
+# Local OpenSearch for dev/testing. Not runnable in Claude's sandbox --
+# run this on your own machine (needs Docker).
+#
+#   docker compose up -d
+#   curl -u admin:Sahaayak_2026! https://localhost:9200 -k    (confirm it's up)
+#
+# Then point build_semantic_index.py / semantic_classifier.py at:
+#   OPENSEARCH_HOST=localhost OPENSEARCH_PORT=9200
+#   OPENSEARCH_USER=admin OPENSEARCH_PASS=Sahaayak_2026!
+#
+# Note: recent OpenSearch images require a strong initial admin password
+# (set via OPENSEARCH_INITIAL_ADMIN_PASSWORD) or the container refuses to
+# start -- change the password below to your own before running.
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.19.0
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=false
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=Sahaayak_2026!
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+volumes:
+  opensearch-data:

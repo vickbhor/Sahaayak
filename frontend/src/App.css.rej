@@ -1,0 +1,24 @@
+diff a/frontend/src/App.css b/frontend/src/App.css	(rejected hunks)
+@@ -160,8 +160,8 @@ body { background-color: #f4f7fa; color: #1a1a1a; }
+ 
+ .sidebar-mobile-close { display: none; }
+ 
+-.sidebar-lang-toggle { display: flex; gap: 6px; background: #f0f4f8; padding: 4px; border-radius: 8px; margin-bottom: 14px; }
+-.sidebar-lang-toggle button { flex: 1; border: none; background: transparent; padding: 7px 0; border-radius: 6px; font-size: 12.5px; font-weight: 600; color: #777; cursor: pointer; }
++.sidebar-lang-toggle { display: flex; gap: 4px; background: #f0f4f8; padding: 4px; border-radius: 8px; margin-bottom: 14px; }
++.sidebar-lang-toggle button { flex: 1; min-width: 0; border: none; background: transparent; padding: 7px 2px; border-radius: 6px; font-size: 11.5px; font-weight: 600; color: #777; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+ .sidebar-lang-toggle button.active { background: white; color: #0066ff; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+ 
+ .badge.urgent { background: #ffe5cc; color: #a04000; padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+@@ -216,6 +216,11 @@ body { background-color: #f4f7fa; color: #1a1a1a; }
+ .vitals-intake-header p { font-size: 13.5px; color: #666; line-height: 1.5; max-width: 440px; margin: 0 auto; }
+ .vitals-form-grid { display: flex; flex-direction: column; gap: 4px; }
+ .vitals-divider { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: #0066ff; text-transform: uppercase; margin: 12px 0 6px; }
++.language-select-grid { display: flex; flex-direction: column; gap: 12px; }
++.language-option-card { display: flex; flex-direction: column; gap: 4px; text-align: left; background: white; border: 1.5px solid #d7dee8; border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: 0.15s; }
++.language-option-card:hover { border-color: #0066ff; background: #f4f8ff; }
++.language-option-label { font-size: 15px; font-weight: 700; color: #111; }
++.language-option-desc { font-size: 12.5px; color: #666; }
+ .vitals-intake-actions { display: flex; gap: 12px; margin-top: 20px; }
+ .skip-btn { flex: 1; display: flex; justify-content: center; align-items: center; gap: 8px; background: white; border: 1px solid #d7dee8; color: #555; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
+ .skip-btn:hover { background: #f4f7fa; }

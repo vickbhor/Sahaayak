@@ -2,6 +2,16 @@ import json
 import os
 from collections import Counter
 import warnings
+from dotenv import load_dotenv
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+backend_env_path = os.path.join(script_dir, "..", "..", "backend", ".env")
+
+if os.path.exists(backend_env_path):
+    load_dotenv(backend_env_path)
+else:
+    load_dotenv() # Fallback
+# -----------------------------------------------------------
 
 import numpy as np
 import pandas as pd
@@ -9,7 +19,6 @@ from sklearn.model_selection import train_test_split
 
 from embedder import MultilingualEmbedder
 
-# Suppress insecure request warnings for local dev
 warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 CV_POOL = "phase1_artifacts/cv_pool.csv"
@@ -54,7 +63,6 @@ def get_client():
         hosts=[{"host": OPENSEARCH_HOST, "port": OPENSEARCH_PORT}],
         http_auth=(OPENSEARCH_USER, OPENSEARCH_PASS),
         use_ssl=OPENSEARCH_USE_SSL,
-        # FIXED: Always False for local dev to avoid rejecting self-signed certs
         verify_certs=False, 
     )
 

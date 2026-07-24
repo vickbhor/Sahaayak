@@ -8,9 +8,11 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 backend_env_path = os.path.join(script_dir, "..", "..", "backend", ".env")
 
 if os.path.exists(backend_env_path):
-    load_dotenv(backend_env_path)
+    load_dotenv(backend_env_path, override=True)
+    print(f"Loaded .env from: {backend_env_path}")
 else:
-    load_dotenv() # Fallback
+    load_dotenv(override=True)  # Fallback
+    print("WARNING: backend/.env not found at expected path, using fallback load_dotenv()")
 # -----------------------------------------------------------
 
 import numpy as np
@@ -21,7 +23,7 @@ from embedder import MultilingualEmbedder
 
 warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
-CV_POOL = "phase1_artifacts/cv_pool.csv"
+CV_POOL = "phase1_artifacts/cv_pool_v4.csv"
 HOLDOUT = "phase1_artifacts/holdout.csv"
 LABELS = "phase1_artifacts/labels.json"
 
@@ -40,6 +42,7 @@ if not OPENSEARCH_PASS:
     )
 INDEX_NAME = os.getenv("OPENSEARCH_INDEX", "sahaayak-symptoms")
 K = int(os.getenv("SEMANTIC_K", "5"))
+K_SWEEP = [3, 5, 7, 9]  # evaluated in addition to K, no re-indexing needed
 
 PARAPHRASE_CASES = [
     ("high fever, headache, body ache, chills, nausea", "Typhoid"),
@@ -59,6 +62,8 @@ PARAPHRASE_CASES = [
 
 def get_client():
     from opensearchpy import OpenSearch
+    print(f"Connecting to OpenSearch: host={OPENSEARCH_HOST} port={OPENSEARCH_PORT} "
+          f"use_ssl={OPENSEARCH_USE_SSL} user={OPENSEARCH_USER}")
     return OpenSearch(
         hosts=[{"host": OPENSEARCH_HOST, "port": OPENSEARCH_PORT}],
         http_auth=(OPENSEARCH_USER, OPENSEARCH_PASS),
@@ -184,6 +189,16 @@ def main():
             "embedding_model": embedder.model.__class__.__name__,
         }, f, indent=2)
     print("\nWrote semantic_eval_results.json")
+
+    # --- K sweep: compare accuracy across different K values, no re-indexing needed ---
+    print("\n=== K sweep comparison (same index, different K at query time) ===")
+    print(f"{'K':>3} | {'Split':>7} | {'Holdout':>8} | {'Paraphrase':>10}")
+    for k_val in sorted(set(K_SWEEP + [K])):
+        s_acc, _ = evaluate(client, embedder, test_df, k=k_val)
+        h_acc, _ = evaluate(client, embedder, holdout, k=k_val)
+        p_acc, _ = evaluate(client, embedder, para_df, k=k_val)
+        marker = " <- current SEMANTIC_K" if k_val == K else ""
+        print(f"{k_val:>3} | {s_acc*100:>6.2f}% | {h_acc*100:>7.2f}% | {p_acc*100:>9.2f}%{marker}")
 
 
 if __name__ == "__main__":

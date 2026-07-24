@@ -1,7 +1,7 @@
 {
-  "split_test_accuracy": 0.9875,
+  "split_test_accuracy": 0.953939393939394,
   "holdout_accuracy": 0.975609756097561,
-  "paraphrase_accuracy": 0.5833333333333334,
+  "paraphrase_accuracy": 0.6666666666666666,
   "paraphrase_rows": [
     {
       "input": "high fever, headache, body ache, chills, nausea",
@@ -21,7 +21,7 @@
       "input": "chest pain, sweating, breathlessness, pain radiating to left arm",
       "expected": "Heart Attack",
       "predicted": "Malaria",
-      "confidence": 0.6,
+      "confidence": 0.8,
       "match": false
     },
     {
@@ -49,42 +49,42 @@
       "input": "yellowing of skin, yellowing of eyes, dark urine, fatigue",
       "expected": "Jaundice",
       "predicted": "Hepatitis B",
-      "confidence": 0.8,
+      "confidence": 0.6,
       "match": false
     },
     {
       "input": "burning urination, frequent urination, lower abdominal pain",
       "expected": "Urinary Tract Infection",
       "predicted": "Urinary Tract Infection",
-      "confidence": 0.6,
+      "confidence": 0.8,
       "match": true
     },
     {
       "input": "throbbing headache, nausea, sensitivity to light",
       "expected": "Migraine",
-      "predicted": "Hypertension",
-      "confidence": 0.6,
-      "match": false
+      "predicted": "Migraine",
+      "confidence": 1.0,
+      "match": true
     },
     {
       "input": "itching, skin rash, red spots, dischromic patches",
       "expected": "Fungal Infection",
       "predicted": "Fungal Infection",
-      "confidence": 0.6,
+      "confidence": 1.0,
       "match": true
     },
     {
       "input": "persistent cough, weight loss, night sweats, blood in sputum",
       "expected": "Tuberculosis",
       "predicted": "Tuberculosis",
-      "confidence": 1.0,
+      "confidence": 0.8,
       "match": true
     },
     {
       "input": "excessive thirst, frequent urination, fatigue, blurred vision",
       "expected": "Diabetes",
       "predicted": "Diabetes",
-      "confidence": 1.0,
+      "confidence": 0.8,
       "match": true
     }
   ],

@@ -142,3 +142,95 @@ Before you begin, ensure you have the following installed:
     ```bash
     cd ../../backend
     python app.py
+    ```
+
+> **Note:** The backend serves at `http://localhost:8000`. Interactive API documentation (Swagger UI) is available at `/docs`.
+
+**4. Frontend Configuration**
+
+    cd ../frontend
+    npm install
+    npm start
+
+> **Note:** The frontend application will run on `http://localhost:3000`.
+
+---
+
+## 📂 Repository Layout
+
+    Sahaayak/
+    ├── backend/
+    │   ├── app.py                     # Core FastAPI routes & endpoints
+    │   ├── auth.py                    # JWT generation & password hashing
+    │   ├── database.py                # SQLite models & ORM queries
+    │   ├── semantic_classifier.py     # OpenSearch & vector retrieval logic
+    │   ├── groq_helpers.py            # Conversation, reasoning extractor & verification
+    │   ├── hospitals.py               # OpenStreetMap hospital search integration
+    │   ├── models/                    # ML model artifacts (hingrobert_model)
+    │   ├── .env.example               # Environment variables template
+    │   ├── SETUP.md                   # Detailed setup instructions
+    │   └── requirements.txt           # Python dependencies (incl. email-validator)
+    ├── sementic/
+    │   └── scripts/
+    │       ├── build_semantic_index.py    # Script to populate the vector database
+    │       ├── view_metrics.py            # Generates AI accuracy & performance reports
+    │       ├── embedder.py                # Multilingual embedding generation
+    │       ├── docker-compose.yml         # OpenSearch container configuration
+    │       └── phase1_artifacts/          # Raw dataset and labels
+    └── frontend/
+        └── src/
+            ├── pages/                 # Landing, Login, Signup, Dashboard, Consultation, ReportDetail
+            ├── components/            # Sidebar, VitalsIntake, TriageDemoPanel, Logo, LanguageSelect
+            ├── context/               # AuthContext, LanguageContext
+            └── i18n/                  # English / Hindi localization mappings
+
+---
+
+## 🔌 API Reference
+
+### Authentication
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/auth/register` | Register a new patient account |
+| `POST` | `/api/auth/login` | Authenticate and receive a JWT token |
+| `GET` | `/api/auth/me` | Retrieve current authenticated user profile |
+
+### Triage & Medical Reports
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/triage` | Submit a chat message or generate a final triage report (returns confidence score, reasoning, and red flags) |
+| `GET` | `/api/reports` | Fetch a list of all historical patient reports |
+| `GET` | `/api/reports/{id}` | Retrieve deep details of a specific consultation |
+| `GET` | `/api/medications` | Aggregate list of AI-suggested OTC medicines across reports |
+
+### Hospital Locator
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `GET` | `/api/hospitals/nearby?lat=&lon=` | Discover medical facilities near specific coordinates |
+| `GET` | `/api/hospitals/search?query=` | Search for hospitals by city name or local pincode |
+
+---
+
+## 🔮 Roadmap & Future Scope
+
+* **🎙️ Voice Input Integration:** To support users with low literacy or limited typing proficiency.
+* **📶 SMS Fallback:** Enabling triage capabilities for basic feature phones without internet access.
+* **👨‍⚕️ Doctor-Facing Dashboard:** A dedicated portal for healthcare professionals to review flagged critical cases instantly.
+* **🌍 Expanded Localization:** Adding support for more regional Indian languages (e.g., Bengali, Marathi, Tamil, Telugu).
+
+---
+
+## ⚠️ Disclaimer & Limitations
+
+**Sahaayak AI is an assistive technology designed to provide preliminary triage guidance. It does NOT replace professional medical diagnosis, advice, or treatment.**
+
+The system provides general insights based on reported symptoms. In the event of a medical emergency, severe pain, or rapidly worsening symptoms, users must contact local emergency services or visit the nearest hospital immediately.
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License — see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.

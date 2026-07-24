@@ -12,10 +12,14 @@ CV_POOL = "phase1_artifacts/cv_pool.csv"
 HOLDOUT = "phase1_artifacts/holdout.csv"
 LABELS = "phase1_artifacts/labels.json"
 
+
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
 OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
 OPENSEARCH_USER = os.getenv("OPENSEARCH_USER", "admin")
 OPENSEARCH_PASS = os.getenv("OPENSEARCH_PASS")
+
+OPENSEARCH_USE_SSL = os.getenv("OPENSEARCH_USE_SSL", "false").lower() == "true"
+
 if not OPENSEARCH_PASS:
     raise RuntimeError(
         "OPENSEARCH_PASS environment variable is not set. Set it in your .env file - "
@@ -45,8 +49,9 @@ def get_client():
     return OpenSearch(
         hosts=[{"host": OPENSEARCH_HOST, "port": OPENSEARCH_PORT}],
         http_auth=(OPENSEARCH_USER, OPENSEARCH_PASS),
-        use_ssl=True,
-        verify_certs=False,
+        # Fix: Now using the environment variable instead of hardcoded True
+        use_ssl=OPENSEARCH_USE_SSL,
+        verify_certs=OPENSEARCH_USE_SSL,
     )
 
 
@@ -74,12 +79,20 @@ def bulk_index(client, df, embeddings, meta_by_name):
     from opensearchpy.helpers import bulk
     actions = []
     for (_, row), vec in zip(df.iterrows(), embeddings):
-        meta = meta_by_name.get(row["prognosis"], {"urgency": "LOW", "specialist": "General Physician"})
+        prognosis = row["prognosis"]
+        
+        # Fix: Catching the silent bug and logging a warning
+        if prognosis not in meta_by_name:
+            print(f"⚠️ WARNING: '{prognosis}' not found in labels.json! Defaulting to LOW urgency/General Physician.")
+            meta = {"urgency": "LOW", "specialist": "General Physician"}
+        else:
+            meta = meta_by_name[prognosis]
+
         actions.append({
             "_index": INDEX_NAME,
             "_source": {
                 "embedding": vec.tolist(),
-                "disease": row["prognosis"],
+                "disease": prognosis,
                 "urgency": meta["urgency"],
                 "specialist": meta["specialist"],
                 "symptom_text": row["symptom_text"],
@@ -163,5 +176,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    

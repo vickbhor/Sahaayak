@@ -1,3 +1,4 @@
+import asyncio
 import os
 from collections import Counter
 
@@ -48,20 +49,21 @@ class SemanticMedicalClassifier:
             }
 
         try:
-            query_vec = self.embedder.embed(extracted_symptoms)
+            query_vec = await asyncio.to_thread(self.embedder.embed, extracted_symptoms)
             body = {
                 "size": K_NEIGHBORS,
                 "query": {"knn": {"embedding": {"vector": query_vec.tolist(), "k": K_NEIGHBORS}}},
             }
-            res = self.client.search(index=INDEX_NAME, body=body)
+            res = await asyncio.to_thread(self.client.search, index=INDEX_NAME, body=body)
             hits = res["hits"]["hits"]
             if not hits:
                 return {
-                    "predicted_disease": "Unknown Condition",
-                    "urgency": escalate_for_red_flags(extracted_symptoms, "LOW"),
+                    "predicted_disease": "Unknown Condition (no similar cases in knowledge base)",
+                    "urgency": escalate_for_red_flags(extracted_symptoms, "MEDIUM"),
                     "specialist": "General Physician",
                     "confidence": 0.0,
-                    "reasoning": "No index vector matches found.",
+                    "reasoning": "No similar cases found in the knowledge base — this is not a "
+                                 "confirmed diagnosis. Please consult a doctor.",
                 }
 
             votes = Counter(h["_source"]["disease"] for h in hits)
@@ -82,10 +84,6 @@ class SemanticMedicalClassifier:
                 if verified.get("urgency"):
                     urgency = verified["urgency"]
 
-                # Cross-check the alternative against our verified reference
-                # table. If Groq named a disease we have canonical data for,
-                # trust that data for specialist routing and never let the
-                # urgency sit BELOW the reference's known floor for it.
                 ref = lookup_disease(top_disease)
                 if ref:
                     specialist = ref.get("specialist", specialist)
@@ -107,9 +105,10 @@ class SemanticMedicalClassifier:
         except Exception as e:
             print(f"Semantic prediction error: {e}")
             return {
-                "predicted_disease": "Error processing symptoms",
-                "urgency": "UNKNOWN",
-                "specialist": "N/A",
+                "predicted_disease": "Unable to classify (an error occurred)",
+                "urgency": escalate_for_red_flags(extracted_symptoms, "MEDIUM"),
+                "specialist": "General Physician",
                 "confidence": 0.0,
-                "reasoning": "Error occurred during semantic classification.",
+                "reasoning": "A technical error occurred during classification — this is not a "
+                             "real diagnosis. Please consult a doctor, especially if symptoms are severe.",
             }

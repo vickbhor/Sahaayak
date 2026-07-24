@@ -70,6 +70,9 @@ class TriageResponse(BaseModel):
     nearby_hospitals: Optional[List[Dict]] = None
 
 
+_DUMMY_HASH, _DUMMY_SALT = auth.hash_password("timing-safety-dummy-password")
+
+
 @app.post("/api/auth/register")
 async def register(payload: RegisterRequest):
     email = payload.email.lower()
@@ -93,7 +96,15 @@ async def register(payload: RegisterRequest):
 async def login(payload: LoginRequest):
     email = payload.email.lower()
     user = database.get_user_by_email(email)
-    if not user or not auth.verify_password(payload.password, user["salt"], user["password_hash"]):
+
+    if user:
+        password_ok = auth.verify_password(payload.password, user["salt"], user["password_hash"])
+    else:
+
+        auth.verify_password(payload.password, _DUMMY_SALT, _DUMMY_HASH)
+        password_ok = False
+
+    if not user or not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     token = auth.create_token(user["id"], user["email"])
@@ -152,9 +163,7 @@ def format_vitals(vitals) -> str:
 async def process_triage(request: TriageRequest, current_user=Depends(auth.get_current_user)):
     try:
         if request.generate_report:
-            # Pull the patient's most recent report (if any) so the extractor
-            # can read new symptoms in context (e.g. a recurrence / follow-up)
-            # instead of every conversation starting from zero.
+
             previous_condition = ""
             previous_reports = database.list_reports(current_user["id"])
             if previous_reports:
@@ -193,9 +202,6 @@ async def process_triage(request: TriageRequest, current_user=Depends(auth.get_c
 
             reasoning_block = f"\nClinical Rationale:\n{reasoning}\n" if reasoning else ""
 
-            # For urgent cases, auto-fetch nearby hospitals if the client sent
-            # a location. If no location was sent, we just skip this quietly --
-            # nothing breaks, the patient just doesn't get the extra list.
             nearby_hospitals = None
             hospitals_block = ""
             if urgency in ["CRITICAL", "HIGH"] and request.latitude is not None and request.longitude is not None:
@@ -267,10 +273,6 @@ DISCLAIMER: This is an AI-assisted triage tool and NOT a substitute for professi
         vitals_context = format_vitals(request.vitals)
         vitals_line = f"Patient vitals on record: {vitals_context}." if vitals_context else ""
 
-        # --- Plausibility gate: runs BEFORE the main reply is generated ---
-        # Catches jokes/impossible claims (e.g. "I'm on Mars") so the main
-        # assistant never sees them and can't build an escalating scenario
-        # on top of a fake premise.
         latest_user_msg = next(
             (m.content for m in reversed(request.messages) if m.role == "user"), ""
         )

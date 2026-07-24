@@ -35,10 +35,6 @@ async def extract_symptoms_with_groq(messages, previous_condition: str = "") -> 
         [f"{'Patient' if msg.role == 'user' else 'Assistant'}: {msg.content}" for msg in messages]
     )
 
-    # If the patient has an earlier triage report, tell the extractor about
-    # it. It should only USE this as context (e.g. "back pain" reads
-    # differently if their last report was spine-related) -- it must never
-    # invent a symptom the patient didn't actually mention this time.
     history_line = (
         f"\nContext: this patient has a previous triage record noting: \"{previous_condition}\". "
         "Use this only as background context if the current symptoms are plausibly related "
@@ -109,11 +105,20 @@ Respond with exactly one word: READY or NOT_READY."""
         return False
 
 
+import re
+
 IMPOSSIBLE_LOCATION_TERMS = [
     "mars", "moon", "jupiter", "saturn", "venus", "pluto", "neptune", "uranus",
     "mercury", "outer space", "dusri planet", "doosri planet", "another planet",
     "andromeda", "galaxy", "chand par", "mangal par", "mangal grah",
 ]
+# Word-boundary pattern so e.g. "mercury" doesn't false-positive inside a
+# genuine, medically-relevant sentence like "my mercury thermometer broke"
+# (mercury exposure is a real concern, not implausible at all) -- a plain
+# substring check would have wrongly blocked that before the AI saw it.
+_IMPOSSIBLE_LOCATION_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(term) for term in IMPOSSIBLE_LOCATION_TERMS) + r")\b"
+)
 
 
 async def check_input_plausibility(latest_message: str, previous_bot_question: str = "") -> dict:
@@ -133,7 +138,7 @@ async def check_input_plausibility(latest_message: str, previous_bot_question: s
     followed on every single turn.
     """
     text = (latest_message or "").lower()
-    if any(term in text for term in IMPOSSIBLE_LOCATION_TERMS):
+    if _IMPOSSIBLE_LOCATION_PATTERN.search(text):
         return {"plausible": False, "level": "rule"}
 
     system_prompt = """You are a fast sanity-checker for a medical triage chatbot.
@@ -307,10 +312,6 @@ async def verify_prediction_with_groq(
 ) -> dict:
     grounding_line = ""
     if known_diseases:
-        # Ground any "alternative" suggestion in our own verified disease
-        # reference table (disease_reference.py) instead of letting the
-        # model free-associate a diagnosis we have no urgency/specialist
-        # data for. Capped to keep the prompt small.
         sample = ", ".join(known_diseases[:400])
         grounding_line = (
             "\nIf you propose an alternative, prefer a name from this known "

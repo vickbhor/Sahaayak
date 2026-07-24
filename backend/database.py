@@ -3,9 +3,6 @@ import json
 import os
 from datetime import datetime, timezone
 
-# Absolute path so the DB location doesn't depend on the working directory
-# the server happens to be launched from (fixes "why is my data empty" bugs
-# when running uvicorn from a different folder).
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sahaayak.db")
 
 
@@ -13,6 +10,8 @@ def get_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
@@ -56,8 +55,6 @@ def init_db():
         )
     ''')
 
-    # Lightweight migration: add the reasoning column for installs that
-    # created their sahaayak.db before the Trust Layer feature existed.
     cursor.execute("PRAGMA table_info(triage_reports)")
     columns = [column[1] for column in cursor.fetchall()]
     if "reasoning" not in columns:

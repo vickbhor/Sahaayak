@@ -87,6 +87,22 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
 
 ---
 
+## 📊 Model Evaluation & Tuning
+
+The k-NN symptom classifier is evaluated automatically every time the index is built — there's no separate step to remember.
+
+Running `build_semantic_index.py` reports:
+
+* **70:30 split accuracy** and **untouched holdout accuracy** — standard generalization checks.
+* **Paraphrase accuracy** — a fixed set of 12 hand-written, differently-worded symptom descriptions (one per commonly confused disease) that never appear in training data, used to sanity-check that the model generalizes to real-world phrasing rather than memorizing exact wording.
+* **K-sweep comparison** — the same index is queried at `K = 3, 5, 7, 9` (in addition to whatever `SEMANTIC_K` is set to) so you can see which K value gives the best paraphrase accuracy *without re-embedding or re-indexing*, since K is a query-time parameter only. Pick the best-performing K and set it permanently via `SEMANTIC_K` in `.env`.
+
+This run is deterministic (fixed `random_state` for the train/test split) and safe to re-run as many times as needed — it overwrites `semantic_eval_results.json` and the OpenSearch index in place rather than accumulating files or duplicate indices.
+
+Known limitation: a handful of diseases with genuinely overlapping symptom profiles (e.g. Typhoid vs. Malaria, Bronchial Asthma vs. Heart Attack, Jaundice vs. Hepatitis B) are harder to separate on symptom text alone and are documented as an open limitation rather than papered over.
+
+---
+
 ## 🚀 Running it Locally
 
 ### Prerequisites
@@ -124,16 +140,17 @@ Before you begin, ensure you have the following installed:
     # Install Dependencies
     pip install -r requirements.txt
 
-* Create a `.env` file in the `backend/` directory (refer to `.env.example`) and add your `GROQ_API_KEY` and database configurations.
+* Copy `.env.example` to `.env` in the `backend/` directory and fill in your own `GROQ_API_KEY`, `JWT_SECRET`, and OpenSearch credentials. **Never commit `.env` itself** — it's already covered by `.gitignore`; only `.env.example` (with blank values) should be tracked in git.
 
 * **Build the Semantic Index:** Navigate to the scripts folder to train the model and populate OpenSearch.
     ```bash
     cd ../sementic/scripts
     python build_semantic_index.py
     ```
+    This single command builds the index **and** prints the full evaluation report described above (split/holdout/paraphrase accuracy + K-sweep table) — no separate step needed.
 
 * **📊 View AI Performance Metrics (Optional but highly recommended!):**
-  Want to see how accurate our AI model is? Run the evaluation script to get a detailed terminal report of our Train/Test split, unseen data accuracy, and real-world paraphrase handling.
+  Want to revisit the accuracy report without rebuilding the index? Run:
     ```bash
     python view_metrics.py
     ```
@@ -167,16 +184,16 @@ Before you begin, ensure you have the following installed:
     │   ├── groq_helpers.py            # Conversation, reasoning extractor & verification
     │   ├── hospitals.py               # OpenStreetMap hospital search integration
     │   ├── models/                    # ML model artifacts (hingrobert_model)
-    │   ├── .env.example               # Environment variables template
+    │   ├── .env.example               # Environment variables template (no real secrets — copy to .env and fill in)
     │   ├── SETUP.md                   # Detailed setup instructions
     │   └── requirements.txt           # Python dependencies (incl. email-validator)
     ├── sementic/
     │   └── scripts/
-    │       ├── build_semantic_index.py    # Script to populate the vector database
-    │       ├── view_metrics.py            # Generates AI accuracy & performance reports
+    │       ├── build_semantic_index.py    # Builds the vector index + prints accuracy/K-sweep report
+    │       ├── view_metrics.py            # Re-displays the last AI accuracy & performance report
     │       ├── embedder.py                # Multilingual embedding generation
     │       ├── docker-compose.yml         # OpenSearch container configuration
-    │       └── phase1_artifacts/          # Raw dataset and labels
+    │       └── phase1_artifacts/          # Training pool (cv_pool*.csv), holdout set, and disease labels
     └── frontend/
         └── src/
             ├── pages/                 # Landing, Login, Signup, Dashboard, Consultation, ReportDetail

@@ -1,12 +1,16 @@
 import json
 import os
 from collections import Counter
+import warnings
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
 from embedder import MultilingualEmbedder
+
+# Suppress insecure request warnings for local dev
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 CV_POOL = "phase1_artifacts/cv_pool.csv"
 HOLDOUT = "phase1_artifacts/holdout.csv"
@@ -49,9 +53,9 @@ def get_client():
     return OpenSearch(
         hosts=[{"host": OPENSEARCH_HOST, "port": OPENSEARCH_PORT}],
         http_auth=(OPENSEARCH_USER, OPENSEARCH_PASS),
-        # Fix: Now using the environment variable instead of hardcoded True
         use_ssl=OPENSEARCH_USE_SSL,
-        verify_certs=OPENSEARCH_USE_SSL,
+        # FIXED: Always False for local dev to avoid rejecting self-signed certs
+        verify_certs=False, 
     )
 
 

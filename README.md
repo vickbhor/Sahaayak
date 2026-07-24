@@ -26,8 +26,9 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
 *   **🗣️ True Multilingual Understanding:** Follows natural Hindi, English, and Hinglish conversations seamlessly. No need for the patient to act as their own translator.
 *   **🚦 Intelligent Urgency Triage:** Automatically classifies every consultation into distinct severity levels: *Low, Medium, High, or Critical*.
 *   **🩺 Smart Specialist Routing:** Maps reported symptoms to the most relevant medical specialist, avoiding generic "see a doctor" advice.
+*   **❤️ Strict Clinical Persona:** Enforces a mandatory empathy-first rule. The AI interacts with the maturity of a seasoned doctor, asking only one highly relevant follow-up question at a time to prevent patient fatigue.
+*   **🚨 Real-Time Emergency Flagging:** Scans active conversations for critical keywords (e.g., chest pain, severe weakness) and immediately halts the chat to issue emergency medical warnings before report generation.
 *   **🔍 AI Trust Layer & Clinical Rationale:** Fully transparent diagnostic reports featuring an expandable clinical reasoning accordion and explicit confidence score metrics.
-*   **🚨 Critical Case Flagging & Safety Guardrails:** Dynamic red-flag detection overrides static labels to instantly escalate high-risk symptom combinations (e.g., numbness, severe weakness) to critical/high urgency.
 *   **💊 Safe & Guardrailed Advice:** Strictly limits suggestions to general OTC (Over-The-Counter) and home-care guidance. The AI is hardcoded to *never* prescribe exact medical dosages.
 *   **🏥 Zero-Cost Hospital Locator:** Integrates free OpenStreetMap data to provide location-based hospital searches, complete with contact details, keeping infrastructure costs at zero.
 *   **📱 Fully Responsive UI:** Accessible across desktop, tablet, and mobile devices with a full English/हिन्दी interface toggle.
@@ -39,9 +40,7 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
 
     Patient:  mujhe 3 din se bukhar hai aur badan mein bahut dard hai
 
-    Sahaayak: Got it — fever for 3 days with body ache. A couple of quick questions:
-              • Any chills, sweating, or cough along with it?
-              • Is the fever constant, or does it spike at certain times of day?
+    Sahaayak: Mujhe sunkar dukh hua ki aapko takleef ho rahi hai. Ye bukhar lagatar rehta hai, ya din ke kisi khaas waqt zyada badh jata hai?
 
     Patient:  thoda cough bhi hai, aur fever raat ko zyada badh jata hai
 
@@ -59,7 +58,7 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
     flowchart LR
         U[Patient] -->|Hindi / English / Hinglish| FE[React Frontend]
         FE <-->|HTTPS + JWT| BE[FastAPI Backend]
-        BE <--> LLM["Groq · Llama 3.1<br/>conversation & 2-factor verification"]
+        BE <--> LLM["Groq · Llama 3.3 70B<br/>strict clinical persona & verification"]
         BE <--> VDB["OpenSearch (k-NN)<br/>semantic symptom index"]
         BE <--> EMB["Sentence-Transformers<br/>multilingual embeddings"]
         BE --> DB[(SQLite)]
@@ -68,7 +67,7 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
 ### Why this architecture?
 
 1. **OpenSearch (k-NN) & Sentence-Transformers:** Handles core medical retrieval. Instead of relying on fragile keyword matching, patient symptoms are converted into high-dimensional vectors. We then perform a semantic search against a medically verified symptom-disease index.
-2. **Groq (Llama 3.1):** Acts as the conversational engine and a rigorous sanity-checker. It manages the free-form chat, extracts core symptoms, and performs a 2-factor verification on the diagnosis retrieved from OpenSearch.
+2. **Groq (Llama 3.3 70B):** Acts as the conversational engine and a rigorous sanity-checker. The massive 70B parameter model perfectly understands complex Hinglish, strictly enforces empathy guardrails, and performs 2-factor verification on OpenSearch diagnoses.
 3. **SQLite:** Keeps the deployment lightweight and self-contained. By eliminating the need to provision an external database, the system remains highly viable for low-infrastructure environments.
 4. **OpenStreetMap (Overpass + Nominatim):** Powers the nearby hospital lookup without the recurring costs of premium Places APIs.
 
@@ -80,7 +79,7 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
 | --- | --- |
 | **Frontend** | React 18, React Router, Axios, jsPDF, lucide-react |
 | **Backend** | FastAPI, Uvicorn, Pydantic, email-validator |
-| **AI & LLM** | Groq (Llama 3.1) |
+| **AI & LLM** | Groq (Llama 3.3 70B Versatile) |
 | **Search & Retrieval** | OpenSearch (k-NN), HuggingFace Sentence-Transformers |
 | **Authentication** | JWT, PBKDF2-SHA256 password hashing |
 | **Database** | SQLite |

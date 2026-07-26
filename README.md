@@ -94,12 +94,17 @@ The k-NN symptom classifier is evaluated automatically every time the index is b
 Running `build_semantic_index.py` reports:
 
 * **70:30 split accuracy** and **untouched holdout accuracy** — standard generalization checks.
+<<<<<<< HEAD
 * **Per-class precision / recall / F1** on the 70:30 split, printed to console and saved in `semantic_eval_results.json`. Raw accuracy alone can hide class imbalance — several CRITICAL-urgency diseases (Heart Attack, AIDS, Paralysis) have far fewer training examples than common ones, so this breaks the aggregate number down by disease instead of relying on one blended figure.
 * **Paraphrase accuracy** — 41 hand-written, differently-worded symptom descriptions, one per disease class (up from an earlier 12-case set covering only a third of the classes), that never appear in training data. Used to sanity-check that the model generalizes to real-world phrasing rather than memorizing exact wording, and now gives full-coverage, per-class signal instead of a small sample with a wide confidence interval.
+=======
+* **Paraphrase accuracy** — a fixed set of 12 hand-written, differently-worded symptom descriptions (one per commonly confused disease) that never appear in training data, used to sanity-check that the model generalizes to real-world phrasing rather than memorizing exact wording.
+>>>>>>> f16601926ee2394b0a425f412f6988b887893a77
 * **K-sweep comparison** — the same index is queried at `K = 3, 5, 7, 9` (in addition to whatever `SEMANTIC_K` is set to) so you can see which K value gives the best paraphrase accuracy *without re-embedding or re-indexing*, since K is a query-time parameter only. Pick the best-performing K and set it permanently via `SEMANTIC_K` in `.env`.
 
 This run is deterministic (fixed `random_state` for the train/test split) and safe to re-run as many times as needed — it overwrites `semantic_eval_results.json` and the OpenSearch index in place rather than accumulating files or duplicate indices.
 
+<<<<<<< HEAD
 **End-to-end pipeline evaluation:** the eval above only measures the raw k-NN retrieval layer. To evaluate the *full* pipeline — retrieval + Groq LLM verification + red-flag escalation, i.e. exactly what a live request goes through — run:
 
 ```bash
@@ -108,6 +113,8 @@ python evaluate_end_to_end.py
 
 after `build_semantic_index.py` (it reuses the already-built index and the same held-out rows). This requires `GROQ_API_KEY` to be set, since it makes real verification calls. It reports end-to-end accuracy on all three eval sets plus a **verification override rate** — how often the Groq step actually changed the retrieval layer's top prediction — and writes `end_to_end_eval_results.json`. `view_metrics.py` will pick this file up automatically if it exists alongside `semantic_eval_results.json`.
 
+=======
+>>>>>>> f16601926ee2394b0a425f412f6988b887893a77
 Known limitation: a handful of diseases with genuinely overlapping symptom profiles (e.g. Typhoid vs. Malaria, Bronchial Asthma vs. Heart Attack, Jaundice vs. Hepatitis B) are harder to separate on symptom text alone and are documented as an open limitation rather than papered over.
 
 ---
@@ -210,8 +217,6 @@ Before you begin, ensure you have the following installed:
             ├── components/            # Sidebar, VitalsIntake, TriageDemoPanel, Logo, LanguageSelect
             ├── context/               # AuthContext, LanguageContext
             └── i18n/                  # English / Hindi localization mappings
-
----
 
 ## 🔌 API Reference
 

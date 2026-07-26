@@ -1,264 +1,396 @@
-import json
 import os
-from collections import Counter
-import warnings
+import json
+import re
+import asyncio
+from typing import List
+from groq import AsyncGroq
 from dotenv import load_dotenv
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-backend_env_path = os.path.join(script_dir, "..", "..", "backend", ".env")
+load_dotenv()
 
-if os.path.exists(backend_env_path):
-    load_dotenv(backend_env_path, override=True)
-    print(f"Loaded .env from: {backend_env_path}")
-else:
-    load_dotenv(override=True)  # Fallback
-    print("WARNING: backend/.env not found at expected path, using fallback load_dotenv()")
-# -----------------------------------------------------------
-
-import numpy as np
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
-
-from embedder import MultilingualEmbedder
-
-warnings.filterwarnings("ignore", message="Unverified HTTPS request")
-
-CV_POOL = "phase1_artifacts/cv_pool_v4.csv"
-HOLDOUT = "phase1_artifacts/holdout.csv"
-LABELS = "phase1_artifacts/labels.json"
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = "llama-3.3-70b-versatile"
+groq_client = AsyncGroq(api_key=GROQ_API_KEY)
 
 
-OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "localhost")
-OPENSEARCH_PORT = int(os.getenv("OPENSEARCH_PORT", "9200"))
-OPENSEARCH_USER = os.getenv("OPENSEARCH_USER", "admin")
-OPENSEARCH_PASS = os.getenv("OPENSEARCH_PASS")
+def convert_messages_for_llm(messages) -> List[dict]:
+    return [{"role": msg.role, "content": msg.content} for msg in messages]
 
-OPENSEARCH_USE_SSL = os.getenv("OPENSEARCH_USE_SSL", "false").lower() == "true"
 
-if not OPENSEARCH_PASS:
-    raise RuntimeError(
-        "OPENSEARCH_PASS environment variable is not set. Set it in your .env file - "
-        "do not hardcode a default here, this file is committed to a public repo."
+async def get_ai_response(messages, system_prompt: str) -> str:
+    groq_messages = convert_messages_for_llm(messages)
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[{"role": "system", "content": system_prompt}] + groq_messages,
+                model=GROQ_MODEL,
+                temperature=0.7,
+                max_tokens=200,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Error: {e}")
+            return "I'm having trouble understanding. Could you tell me more about your symptoms?"
+
+
+async def extract_symptoms_with_groq(messages, previous_condition: str = "") -> str:
+    conversation_text = "\n".join(
+        [f"{'Patient' if msg.role == 'user' else 'Assistant'}: {msg.content}" for msg in messages]
     )
-INDEX_NAME = os.getenv("OPENSEARCH_INDEX", "sahaayak-symptoms")
-K = int(os.getenv("SEMANTIC_K", "5"))
-K_SWEEP = [3, 5, 7, 9]  # evaluated in addition to K, no re-indexing needed
 
-# Expanded from the original 12-case set to one paraphrased case per class
-# (41/41 classes covered, up from 12/41). Each row is a hand-written,
-# differently-worded restatement of that disease's typical presentation --
-# never copied from cv_pool_v4.csv/holdout.csv -- so this still measures
-# generalization to novel phrasing rather than memorized wording. The
-# previous 12-case set had a Wilson 95% CI of roughly 39-86%, too wide to be
-# a meaningful headline number; a full 41-case set narrows that considerably
-# and gives per-class signal instead of a single aggregate.
-PARAPHRASE_CASES = [
-    ("severe muscle wasting, chronic diarrhea, recurring infections, very low immunity", "AIDS"),
-    ("blackheads and whiteheads on face, oily skin, occasional painful pimples", "Acne"),
-    ("swollen belly, yellowish eyes, loss of appetite after years of heavy drinking", "Alcoholic Hepatitis"),
-    ("sneezing fits, itchy watery eyes, runny nose after being near dust or pollen", "Allergy"),
-    ("stiff and swollen finger joints, worse in the morning, painful to grip things", "Arthritis"),
-    ("tight chest, whistling sound while breathing, breathless after light exertion", "Bronchial Asthma"),
-    ("stiff neck, tingling down the arm, dull ache at the back of the head", "Cervical Spondylosis"),
-    ("itchy fluid-filled blisters all over the body, mild fever, came on over a day", "Chicken Pox"),
-    ("persistent itching all over the body, pale stools, yellow-tinted skin", "Chronic Cholestasis"),
-    ("blocked nose, mild throat irritation, sneezing, no high fever", "Common Cold"),
-    ("sudden high fever, severe joint and muscle pain, rash, pain behind the eyes", "Dengue"),
-    ("always thirsty, urinating a lot, unexplained weight loss, tired all the time", "Diabetes"),
-    ("painful lump near the anus, bleeding during bowel movements, discomfort sitting", "Dimorphic Hemorrhoids"),
-    ("skin rash and itching that started right after starting a new tablet", "Drug Reaction"),
-    ("ring-shaped itchy rash on the skin, flaky patches that won't go away", "Fungal Infection"),
-    ("watery loose motions, stomach cramps, mild fever, feeling dehydrated", "Gastroenteritis"),
-    ("burning sensation in the chest after meals, sour taste rising in the throat", "Gastroesophageal Reflux Disease"),
-    ("crushing chest pressure, sweating heavily, pain shooting down the left arm", "Heart Attack"),
-    ("sudden nausea and fatigue, mild fever, slight yellowing of the eyes, short-lived", "Hepatitis A"),
-    ("long-standing fatigue, joint pain, dark urine, yellowing skin, history of exposure", "Hepatitis B"),
-    ("chronic tiredness, mild abdominal discomfort, gradually worsening jaundice", "Hepatitis C"),
-    ("sudden worsening of existing liver disease, jaundice, severe fatigue", "Hepatitis D"),
-    ("acute jaundice and nausea in a pregnant woman, contaminated water exposure", "Hepatitis E"),
-    ("frequent headaches, chest discomfort, consistently high blood pressure readings", "Hypertension"),
-    ("racing heartbeat, unexplained weight loss, sweating, hand tremors", "Hyperthyroidism"),
-    ("shakiness, cold sweats, confusion, hunger between meals, low blood sugar reading", "Hypoglycemia"),
-    ("constant tiredness, weight gain, feeling cold all the time, dry skin", "Hypothyroidism"),
-    ("honey-colored crusty sores around the mouth and nose, mildly itchy", "Impetigo"),
-    ("yellow tint to the skin and eyes, dark-colored urine, general weakness", "Jaundice"),
-    ("recurring bouts of high fever with chills and sweating every couple of days", "Malaria"),
-    ("throbbing one-sided headache, nausea, can't stand bright light", "Migraine"),
-    ("knee and hip pain that's worse after activity, stiffness that eases with movement", "Osteoarthritis"),
-    ("sudden weakness down one side of the body, difficulty speaking, severe headache", "Paralysis (Brain Hemorrhage)"),
-    ("gnawing pain in the upper stomach that worsens on an empty stomach", "Peptic Ulcer Disease"),
-    ("high fever with chills, cough with phlegm, sharp pain on breathing in", "Pneumonia"),
-    ("thick silvery scaly patches on the skin, itching, worse on elbows and scalp", "Psoriasis"),
-    ("cough lasting for weeks, coughing up blood-tinged sputum, night sweats, weight loss", "Tuberculosis"),
-    ("prolonged fever that steps up gradually day by day, stomach pain, weakness", "Typhoid"),
-    ("stinging pain while urinating, needing to urinate often, cloudy urine", "Urinary Tract Infection"),
-    ("bulging, twisted veins visible under the skin on the legs, heaviness by evening", "Varicose Veins"),
-    ("spinning sensation when turning the head, brief episodes, mild nausea", "Vertigo (Benign Paroxysmal Positional)"),
+    history_line = (
+        f"\nContext: this patient has a previous triage record noting: \"{previous_condition}\". "
+        "Use this only as background context if the current symptoms are plausibly related "
+        "(e.g. a recurrence or follow-up). Do NOT add it as a symptom itself, and do NOT force "
+        "a connection if the current complaint looks unrelated."
+        if previous_condition else ""
+    )
+
+    system_prompt = f"""You are a medical symptom extractor for an Indian healthcare system.
+Analyze the conversation and extract ALL physical symptoms/complaints mentioned by the patient.
+Translate Hindi/Hinglish symptoms to clear English medical terms.
+Return ONLY a comma-separated list of symptoms. NO extra text. If no symptoms found, return "none"
+Example output: High fever, severe headache, body ache{history_line}"""
+
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": conversation_text},
+                ],
+                model=GROQ_MODEL,
+                temperature=0.1,
+                max_tokens=150,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Error: {e}")
+            return "none"
+
+
+async def assess_conversation_readiness(messages) -> dict:
+    default_not_ready = {"ready": False, "missing": [], "next_question": ""}
+
+    conversation_text = "\n".join(
+        f"{'Patient' if m.role == 'user' else 'Assistant'}: {m.content}" for m in messages
+    )
+
+    system_prompt = """You are an experienced doctor deciding whether a patient conversation
+so far contains enough concrete information to form a preliminary triage assessment.
+
+Mentally check for these (the same things a real clinician confirms before concluding
+a consult) - but do NOT require every single one, and do NOT ask the patient to fill
+in every box. Judge overall clinical sufficiency:
+1. Chief complaint - what the main problem actually is
+2. Duration - how long it has been going on
+3. Severity - mild / moderate / severe
+4. Associated symptoms - whether it's an isolated symptom or part of a cluster
+5. What makes it better or worse (optional - only if it naturally came up)
+
+Note: emergency red-flag screening is handled separately elsewhere, so do not
+factor it into this decision.
+
+Answer ready=true only once the patient has named a specific complaint AND given
+enough supporting detail (roughly duration + severity, or duration + associated
+symptoms) that a doctor could reasonably form an initial impression.
+
+Answer ready=false if the conversation is only greetings/small talk, or a named
+symptom with no supporting detail yet.
+
+If ready=false, name the 1-2 most clinically important missing items (from the
+list above, using short lowercase labels like "duration", "severity",
+"associated_symptoms"), and write ONE natural, specific, empathetic follow-up
+question a doctor would ask next to fill the single biggest gap - not a generic
+"tell me more".
+
+Respond with ONLY a raw JSON object, no markdown fences, no extra text, in
+exactly this shape:
+{"ready": true or false, "missing": ["..."], "next_question": "..."}
+When ready is true, "missing" and "next_question" should be empty ([] and "")."""
+
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": conversation_text},
+                ],
+                model=GROQ_MODEL,
+                temperature=0,
+                max_tokens=200,
+                response_format={"type": "json_object"},
+            )
+            raw = response.choices[0].message.content.strip()
+            parsed = json.loads(raw)
+            return {
+                "ready": bool(parsed.get("ready", False)),
+                "missing": parsed.get("missing", []) or [],
+                "next_question": parsed.get("next_question", "") or "",
+            }
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Readiness Error: {e}")
+            return default_not_ready
+
+
+IMPOSSIBLE_LOCATION_TERMS = [
+    "mars", "moon", "jupiter", "saturn", "venus", "pluto", "neptune", "uranus",
+    "mercury", "outer space", "dusri planet", "doosri planet", "another planet",
+    "andromeda", "galaxy", "chand par", "mangal par", "mangal grah",
 ]
 
+_IMPOSSIBLE_LOCATION_PATTERN = re.compile(
+    r"\b(" + "|".join(re.escape(term) for term in IMPOSSIBLE_LOCATION_TERMS) + r")\b"
+)
 
-def get_client():
-    from opensearchpy import OpenSearch
-    print(f"Connecting to OpenSearch: host={OPENSEARCH_HOST} port={OPENSEARCH_PORT} "
-          f"use_ssl={OPENSEARCH_USE_SSL} user={OPENSEARCH_USER}")
-    return OpenSearch(
-        hosts=[{"host": OPENSEARCH_HOST, "port": OPENSEARCH_PORT}],
-        http_auth=(OPENSEARCH_USER, OPENSEARCH_PASS),
-        use_ssl=OPENSEARCH_USE_SSL,
-        verify_certs=False, 
+
+async def check_input_plausibility(latest_message: str, previous_bot_question: str = "") -> dict:
+    text = (latest_message or "").lower()
+    if _IMPOSSIBLE_LOCATION_PATTERN.search(text):
+        return {"plausible": False, "level": "rule"}
+
+    system_prompt = """You are a fast sanity-checker for a medical triage chatbot.
+You will see the assistant's last question (if any) and the patient's latest reply.
+
+Decide if the patient's reply is a genuine, physically possible answer to a
+real health conversation - even if vague, incomplete, or in Hindi/Hinglish/English.
+
+Answer IMPLAUSIBLE only if the reply is clearly a joke, sarcasm, a physically
+impossible claim (e.g. being on another planet, being a fictional/non-human
+entity), or completely unrelated nonsense that no real patient reply would be.
+
+Answer PLAUSIBLE for everything else, including short answers like "na", "haan",
+"pata nahi", vague symptom descriptions, or emotional reactions - these are all
+normal real patient behavior, not implausible.
+
+Respond with exactly one word: PLAUSIBLE or IMPLAUSIBLE."""
+
+    user_prompt = (
+        f'Assistant\'s last question: "{previous_bot_question}"\n'
+        f'Patient\'s reply: "{latest_message}"'
     )
 
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=GROQ_MODEL,
+                temperature=0,
+                max_tokens=5,
+            )
+            verdict = response.choices[0].message.content.strip().upper()
+            is_plausible = not verdict.startswith("IMPLAUSIBLE")
+            return {"plausible": is_plausible, "level": "llm"}
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Plausibility Check Error: {e}")
+            return {"plausible": True, "level": "llm_error"}
 
-def create_index(client, dim: int):
-    if client.indices.exists(index=INDEX_NAME):
-        client.indices.delete(index=INDEX_NAME)
-    client.indices.create(
-        index=INDEX_NAME,
-        body={
-            "settings": {"index": {"knn": True}},
-            "mappings": {
-                "properties": {
-                    "embedding": {"type": "knn_vector", "dimension": dim},
-                    "disease": {"type": "keyword"},
-                    "urgency": {"type": "keyword"},
-                    "specialist": {"type": "keyword"},
-                    "symptom_text": {"type": "text"},
-                }
-            },
-        },
+
+def clean_json_block(text: str) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        if cleaned.lower().startswith("json"):
+            cleaned = cleaned[4:]
+    return cleaned.strip()
+
+
+REMEDY_LANGUAGE_INSTRUCTIONS = {
+    "en": "Write every \"name\", \"purpose\", and \"note\" in clear, plain English.",
+    "hi": "Write every \"name\", \"purpose\", and \"note\" in Hindi, in Devanagari script "
+          "(e.g. \"पानी अधिक मात्रा में पिएं\"), using correct, natural grammar - not a "
+          "word-for-word transliteration.",
+    "hinglish": "Write every \"name\", \"purpose\", and \"note\" in short, NATURAL Hinglish, the way "
+                "a person actually types it casually, e.g. \"Zyada paani piyein\" or \"Garam paani se "
+                "gargle karein\". Each \"name\" must be a single clean 2-5 word phrase - never repeat "
+                "or duplicate a verb (e.g. do not write both 'pina' and 'peele' together), and never "
+                "produce a phrase that could be misread as an unrelated word (e.g. keep 'pila'/'pi le' "
+                "clearly meaning 'drink it', not 'peela' meaning 'yellow').",
+}
+REMEDY_LANGUAGE_DEFAULT = "en"
+
+
+async def extract_medicines_with_groq(messages, predicted_disease: str, urgency: str, language_key: str = "") -> dict:
+    conversation_text = "\n".join(
+        [f"{'Patient' if msg.role == 'user' else 'Assistant'}: {msg.content}" for msg in messages]
     )
 
+    language_key = (language_key or "").lower()
+    language_instruction = REMEDY_LANGUAGE_INSTRUCTIONS.get(language_key, REMEDY_LANGUAGE_INSTRUCTIONS[REMEDY_LANGUAGE_DEFAULT])
 
-def bulk_index(client, df, embeddings, meta_by_name):
-    from opensearchpy.helpers import bulk
-    actions = []
-    for (_, row), vec in zip(df.iterrows(), embeddings):
-        prognosis = row["prognosis"]
-        
-        # Fix: Catching the silent bug and logging a warning
-        if prognosis not in meta_by_name:
-            print(f"⚠️ WARNING: '{prognosis}' not found in labels.json! Defaulting to LOW urgency/General Physician.")
-            meta = {"urgency": "LOW", "specialist": "General Physician"}
-        else:
-            meta = meta_by_name[prognosis]
+    system_prompt = f"""You are a cautious clinical assistant for a rural Indian telehealth triage app.
+Based on the patient conversation and the predicted condition, produce two separate lists:
 
-        actions.append({
-            "_index": INDEX_NAME,
-            "_source": {
-                "embedding": vec.tolist(),
-                "disease": prognosis,
-                "urgency": meta["urgency"],
-                "specialist": meta["specialist"],
-                "symptom_text": row["symptom_text"],
-            },
-        })
-    bulk(client, actions)
-    client.indices.refresh(index=INDEX_NAME)
+1. "medicines": general over-the-counter medicine categories only (e.g. "Paracetamol (OTC)",
+   "Antacid", "Oral rehydration salts"). Never give exact dosages or prescription-only medicines.
+2. "home_remedies": home-care and lifestyle measures that are not medicines at all (e.g. rest,
+   hydration, steam inhalation, warm compress, dietary advice).
 
+If urgency is CRITICAL or HIGH, keep both lists short and clearly secondary to seeking immediate
+medical attention - do not imply self-medication replaces a doctor visit.
 
-def knn_query(client, embedder, text, k=K):
-    vec = embedder.embed(text)
-    res = client.search(index=INDEX_NAME, body={
-        "size": k,
-        "query": {"knn": {"embedding": {"vector": vec.tolist(), "k": k}}},
-    })
-    hits = res["hits"]["hits"]
-    if not hits:
-        return None, 0.0
-    votes = Counter(h["_source"]["disease"] for h in hits)
-    disease, count = votes.most_common(1)[0]
-    return disease, count / len(hits)
+LANGUAGE: {language_instruction}
+Regardless of language, each "name" field is a short LABEL (2-5 words), not a full sentence, and
+must read naturally to a native speaker - re-read it before answering and reject anything that
+sounds redundant, garbled, or ambiguous. Put any extra detail in "purpose"/"note" instead of
+stuffing it into "name".
 
+Return ONLY valid JSON with no markdown fences and no extra text, in this exact shape:
+{{"medicines": [{{"name": "...", "purpose": "...", "note": "..."}}], "home_remedies": [{{"name": "...", "purpose": "...", "note": "..."}}]}}
+Each list should have at most 4 items. If nothing appropriate applies, return an empty list for it."""
 
-def evaluate(client, embedder, df, k=K):
-    correct = 0
-    rows = []
-    for _, row in df.iterrows():
-        pred, conf = knn_query(client, embedder, row["symptom_text"], k=k)
-        match = pred == row["prognosis"]
-        correct += match
-        rows.append({"input": row["symptom_text"], "expected": row["prognosis"], "predicted": pred, "confidence": conf, "match": match})
-    return correct / len(df), rows
+    user_prompt = f"""Predicted condition: {predicted_disease}
+Urgency: {urgency}
 
+Conversation:
+{conversation_text}"""
 
-def main():
-    cv_pool = pd.read_csv(CV_POOL)
-    holdout = pd.read_csv(HOLDOUT)
-    labels = json.load(open(LABELS))
-    meta_by_name = {v["name"]: v for v in labels.values()}
+    empty_result = {"medicines": [], "home_remedies": []}
 
-    print("Loading multilingual embedding model (downloads on first run)...")
-    embedder = MultilingualEmbedder()
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=GROQ_MODEL,
+                temperature=0.2,
+                max_tokens=500,
+            )
+            raw = response.choices[0].message.content.strip()
+            cleaned = clean_json_block(raw)
+            parsed = json.loads(cleaned)
+            if not isinstance(parsed, dict):
+                return empty_result
 
-    train_df, test_df = train_test_split(
-        cv_pool, test_size=0.30, random_state=42, stratify=cv_pool["prognosis"]
-    )
-    print(f"Train: {len(train_df)} rows | 30% test: {len(test_df)} rows")
+            def clean_list(items):
+                valid = []
+                if not isinstance(items, list):
+                    return valid
+                for item in items:
+                    if isinstance(item, dict) and item.get("name"):
+                        valid.append(
+                            {
+                                "name": str(item.get("name"))[:120],
+                                "purpose": str(item.get("purpose", ""))[:200],
+                                "note": str(item.get("note", ""))[:200],
+                            }
+                        )
+                return valid[:4]
 
-    print("Embedding training rows...")
-    train_vecs = embedder.embed(train_df["symptom_text"].tolist())
-
-    client = get_client()
-    create_index(client, dim=embedder.dim)
-    bulk_index(client, train_df, train_vecs, meta_by_name)
-    print(f"Indexed {len(train_df)} rows into OpenSearch index '{INDEX_NAME}'")
-
-    test_acc, test_rows = evaluate(client, embedder, test_df)
-    print(f"70:30 split test accuracy (k={K}): {test_acc:.3f}")
-
-    # --- Per-class precision/recall/F1 on the split test set ---
-    # Raw accuracy alone hides class imbalance: several CRITICAL-urgency
-    # diseases (Heart Attack=10, AIDS=9, Paralysis=9 total examples) have far
-    # fewer training examples than common LOW/MEDIUM ones (Chicken Pox=118,
-    # Diabetes=118), so a high overall accuracy could still mask the model
-    # doing poorly on exactly the cases where a miss is most dangerous.
-    y_true = [r["expected"] for r in test_rows]
-    y_pred = [r["predicted"] for r in test_rows]
-    per_class_report = classification_report(
-        y_true, y_pred, zero_division=0, output_dict=True
-    )
-    print("\n=== Per-class precision / recall / F1 (70:30 split test set) ===")
-    print(f"{'Disease':38s} | {'Prec':>6} | {'Recall':>6} | {'F1':>6} | {'Support':>7}")
-    for disease, m in sorted(per_class_report.items(), key=lambda kv: kv[1].get("support", 0) if isinstance(kv[1], dict) else 0):
-        if disease in ("accuracy", "macro avg", "weighted avg"):
-            continue
-        print(f"{disease:38s} | {m['precision']:6.2f} | {m['recall']:6.2f} | {m['f1-score']:6.2f} | {int(m['support']):7d}")
-    macro = per_class_report["macro avg"]
-    print(f"{'MACRO AVG (unweighted across classes)':38s} | {macro['precision']:6.2f} | {macro['recall']:6.2f} | {macro['f1-score']:6.2f} |")
-
-    holdout_acc, holdout_rows = evaluate(client, embedder, holdout)
-    print(f"Untouched holdout accuracy (k={K}): {holdout_acc:.3f}")
-
-    para_df = pd.DataFrame(PARAPHRASE_CASES, columns=["symptom_text", "prognosis"])
-    para_acc, para_rows = evaluate(client, embedder, para_df)
-    print(f"Paraphrase test accuracy (k={K}): {para_acc:.3f}")
-    for r in para_rows:
-        flag = "OK " if r["match"] else "MISS"
-        print(f"  [{flag}] {r['expected']:28s} -> {r['predicted']}")
-
-    with open("semantic_eval_results.json", "w") as f:
-        json.dump({
-            "split_test_accuracy": test_acc,
-            "split_test_per_class_report": per_class_report,
-            "holdout_accuracy": holdout_acc,
-            "paraphrase_accuracy": para_acc,
-            "paraphrase_rows": para_rows,
-            "k": K,
-            "embedding_model": embedder.model.__class__.__name__,
-        }, f, indent=2)
-    print("\nWrote semantic_eval_results.json")
-
-    # --- K sweep: compare accuracy across different K values, no re-indexing needed ---
-    print("\n=== K sweep comparison (same index, different K at query time) ===")
-    print(f"{'K':>3} | {'Split':>7} | {'Holdout':>8} | {'Paraphrase':>10}")
-    for k_val in sorted(set(K_SWEEP + [K])):
-        s_acc, _ = evaluate(client, embedder, test_df, k=k_val)
-        h_acc, _ = evaluate(client, embedder, holdout, k=k_val)
-        p_acc, _ = evaluate(client, embedder, para_df, k=k_val)
-        marker = " <- current SEMANTIC_K" if k_val == K else ""
-        print(f"{k_val:>3} | {s_acc*100:>6.2f}% | {h_acc*100:>7.2f}% | {p_acc*100:>9.2f}%{marker}")
+            return {
+                "medicines": clean_list(parsed.get("medicines")),
+                "home_remedies": clean_list(parsed.get("home_remedies")),
+            }
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Medicine Extraction Error: {e}")
+            return empty_result
 
 
-if __name__ == "__main__":
-    main()
+RED_FLAG_TERMS = [
+    "numbness", "numb", "weakness", "difficulty with movement", "can't move",
+    "cannot move", "paralysis", "loss of bladder", "loss of bowel",
+    "bladder control", "bowel control", "chest pain", "difficulty breathing",
+    "shortness of breath", "can't breathe", "cannot breathe", "slurred speech",
+    "one-sided weakness", "sudden vision loss", "loss of vision", "fainting",
+    "loss of consciousness", "unconscious", "severe bleeding", "coughing blood",
+    "blood in vomit", "suicidal", "seizure",
+]
+
+URGENCY_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+
+
+def escalate_for_red_flags(symptoms_text: str, urgency: str) -> str:
+    text = (symptoms_text or "").lower()
+    if any(term in text for term in RED_FLAG_TERMS):
+        current_rank = URGENCY_RANK.get((urgency or "LOW").upper(), 0)
+        if current_rank < URGENCY_RANK["HIGH"]:
+            return "HIGH"
+    return urgency
+
+
+async def verify_prediction_with_groq(
+    symptoms_text: str,
+    predicted_disease: str,
+    confidence: float,
+    known_diseases: list = None,
+) -> dict:
+    grounding_line = ""
+    if known_diseases:
+        sample = ", ".join(known_diseases[:400])
+        grounding_line = (
+            "\nIf you propose an alternative, prefer a name from this known "
+            f"disease list when one clearly matches: {sample}. If nothing on "
+            "the list fits, you may still name an alternative outside the list."
+        )
+
+    system_prompt = f"""You are a clinical sanity-checker for a symptom-triage system.
+You will be given a patient's reported symptoms and a disease predicted by a
+retrieval-based classifier. Decide if the prediction is plausible given the
+symptoms.
+
+Return ONLY valid JSON, no markdown fences, in this exact shape:
+{{"confirmed": true or false, "alternative": "<disease name or null>", "urgency": "<LOW|MEDIUM|HIGH|CRITICAL>", "reasoning": "<one short sentence>"}}
+
+If you agree the prediction is plausible, set confirmed=true, alternative=null,
+and still set "urgency" to your own best-judgment urgency for these symptoms
+(reason about it yourself, do not just echo the model's confidence).
+If a different diagnosis clearly fits the symptoms better, set confirmed=false,
+name that alternative, and set "urgency" to the correct urgency level FOR THAT
+ALTERNATIVE diagnosis, not the original one. Only disagree on a clear mismatch --
+don't nitpick borderline calls.
+
+Err toward a higher urgency whenever symptoms include red flags such as numbness,
+weakness, difficulty moving, chest pain, breathing difficulty, sudden neurological
+symptoms, or loss of bladder/bowel control - these should never be graded LOW.{grounding_line}"""
+
+    user_prompt = f'Symptoms: "{symptoms_text}"\nPredicted disease: {predicted_disease}\nModel confidence: {confidence:.2f}'
+
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=GROQ_MODEL,
+                temperature=0,
+                max_tokens=150,
+            )
+            raw = response.choices[0].message.content.strip()
+            cleaned = clean_json_block(raw)
+            parsed = json.loads(cleaned)
+            urgency = str(parsed.get("urgency", "")).upper()
+            if urgency not in URGENCY_RANK:
+                urgency = None
+            return {
+                "confirmed": bool(parsed.get("confirmed", True)),
+                "alternative": parsed.get("alternative"),
+                "urgency": urgency,
+                "reasoning": parsed.get("reasoning", ""),
+            }
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Verification Error: {e}")
+            return {"confirmed": True, "alternative": None, "urgency": None, "reasoning": "verification unavailable"}

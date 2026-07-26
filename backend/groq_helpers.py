@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# MODEL CHANGE: Ab llama-3.1-8b-instant use hoga fast execution aur 500k limit ke liye
+GROQ_MODEL = "llama-3.1-8b-instant"
 groq_client = AsyncGroq(api_key=GROQ_API_KEY)
 
 
@@ -30,7 +31,8 @@ async def get_ai_response(messages, system_prompt: str) -> str:
             return response.choices[0].message.content.strip()
         except Exception as e:
             if "429" in str(e) or "rate limit" in str(e).lower():
-                await asyncio.sleep(510)
+                print(f"\n[⚠️ ALERT] Rate Limit Hit in get_ai_response! Retrying in 60s... Error: {e}")
+                await asyncio.sleep(60)
                 continue
             print(f"Groq Error: {e}")
             return "I'm having trouble understanding. Could you tell me more about your symptoms?"
@@ -69,7 +71,8 @@ Example output: High fever, severe headache, body ache{history_line}"""
             return response.choices[0].message.content.strip()
         except Exception as e:
             if "429" in str(e) or "rate limit" in str(e).lower():
-                await asyncio.sleep(510)
+                print(f"\n[⚠️ ALERT] Rate Limit Hit in extract_symptoms! Retrying in 60s... Error: {e}")
+                await asyncio.sleep(60)
                 continue
             print(f"Groq Error: {e}")
             return "none"
@@ -136,7 +139,8 @@ When ready is true, "missing" and "next_question" should be empty ([] and "").""
             }
         except Exception as e:
             if "429" in str(e) or "rate limit" in str(e).lower():
-                await asyncio.sleep(510)
+                print(f"\n[⚠️ ALERT] Rate Limit Hit in conversation_readiness! Retrying in 60s... Error: {e}")
+                await asyncio.sleep(60)
                 continue
             print(f"Groq Readiness Error: {e}")
             return default_not_ready
@@ -195,7 +199,8 @@ Respond with exactly one word: PLAUSIBLE or IMPLAUSIBLE."""
             return {"plausible": is_plausible, "level": "llm"}
         except Exception as e:
             if "429" in str(e) or "rate limit" in str(e).lower():
-                await asyncio.sleep(510)
+                print(f"\n[⚠️ ALERT] Rate Limit Hit in plausibility! Retrying in 60s... Error: {e}")
+                await asyncio.sleep(60)
                 continue
             print(f"Groq Plausibility Check Error: {e}")
             return {"plausible": True, "level": "llm_error"}
@@ -300,7 +305,8 @@ Conversation:
             }
         except Exception as e:
             if "429" in str(e) or "rate limit" in str(e).lower():
-                await asyncio.sleep(510)
+                print(f"\n[⚠️ ALERT] Rate Limit Hit in medicine_extraction! Retrying in 60s... Error: {e}")
+                await asyncio.sleep(60)
                 continue
             print(f"Groq Medicine Extraction Error: {e}")
             return empty_result
@@ -390,7 +396,8 @@ symptoms, or loss of bladder/bowel control - these should never be graded LOW.{g
             }
         except Exception as e:
             if "429" in str(e) or "rate limit" in str(e).lower():
-                await asyncio.sleep(510)
+                print(f"\n[⚠️ ALERT] Rate Limit Hit in verify_prediction! Retrying in 60s... Error: {e}")
+                await asyncio.sleep(60)
                 continue
             print(f"Groq Verification Error: {e}")
             return {"confirmed": True, "alternative": None, "urgency": None, "reasoning": "verification unavailable"}

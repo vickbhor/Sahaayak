@@ -2,52 +2,48 @@
 
 > **An intelligent triage assistant designed to meet patients in the language they actually speak — Hindi, English, or the Hinglish in between.**
 
-[![Python](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![React](https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![OpenSearch](https://img.shields.io/badge/OpenSearch-k--NN-005EB8?logo=opensearch&logoColor=white)](https://opensearch.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
-
 ---
 
 ## 💡 The Problem & Our Approach
 
-Rural and semi-urban healthcare gaps aren't solely caused by a shortage of medical professionals — they are deeply exacerbated by a lack of accessible triage systems that understand patients on their own terms. 
+Rural and semi-urban healthcare gaps aren't solely caused by a shortage of medical professionals — they are deeply exacerbated by a lack of accessible triage systems that understand patients on their own terms.
 
 When patients describe symptoms, they rarely use tidy, clinical English. Their descriptions are raw, conversational, and often a fluid mix of Hindi and English. Most existing digital triage tools force the user to translate their discomfort into rigid medical terminology. As a result, patients either oversimplify their conditions, misreport symptoms, or abandon the tool entirely.
 
-**Sahaayak AI flips this model.** 
+**Sahaayak AI flips this model.**
 Built with a user-centric design approach, Sahaayak assumes the burden of translation. It allows the patient to explain their problem in their natural dialect and handles the complex medical normalization, semantic mapping, and triage scaling entirely in the backend.
 
 ---
 
 ## ✨ Key Features
 
-*   **🗣️ True Multilingual Understanding:** Follows natural Hindi, English, and Hinglish conversations seamlessly. No need for the patient to act as their own translator.
-*   **🚦 Intelligent Urgency Triage:** Automatically classifies every consultation into distinct severity levels: *Low, Medium, High, or Critical*.
-*   **🩺 Smart Specialist Routing:** Maps reported symptoms to the most relevant medical specialist, avoiding generic "see a doctor" advice.
-*   **❤️ Strict Clinical Persona:** Enforces a mandatory empathy-first rule. The AI interacts with the maturity of a seasoned doctor, asking only one highly relevant follow-up question at a time to prevent patient fatigue.
-*   **🚨 Real-Time Emergency Flagging:** Scans active conversations for critical keywords (e.g., chest pain, severe weakness) and immediately halts the chat to issue emergency medical warnings before report generation.
-*   **🔍 AI Trust Layer & Clinical Rationale:** Fully transparent diagnostic reports featuring an expandable clinical reasoning accordion and explicit confidence score metrics.
-*   **💊 Safe & Guardrailed Advice:** Strictly limits suggestions to general OTC (Over-The-Counter) and home-care guidance. The AI is hardcoded to *never* prescribe exact medical dosages.
-*   **🏥 Zero-Cost Hospital Locator:** Integrates free OpenStreetMap data to provide location-based hospital searches, complete with contact details, keeping infrastructure costs at zero.
-*   **📱 Fully Responsive UI:** Accessible across desktop, tablet, and mobile devices with a full English/हिन्दी interface toggle.
-*   **💾 Persistent Consultation History:** Safely stores chat transcripts, patient vitals, and final triage outcomes for future reference.
+* **🗣️ True Multilingual Understanding:** Follows natural Hindi, English, and Hinglish conversations seamlessly. No need for the patient to act as their own translator.
+* **🚦 Intelligent Urgency Triage:** Automatically classifies every consultation into distinct severity levels: *Low, Medium, High, or Critical*.
+* **🩺 Smart Specialist Routing:** Maps reported symptoms to the most relevant medical specialist, avoiding generic "see a doctor" advice.
+* **❤️ Strict Clinical Persona:** Enforces a mandatory empathy-first rule. The AI interacts with the maturity of a seasoned doctor, asking only one highly relevant follow-up question at a time to prevent patient fatigue.
+* **🚨 Real-Time Emergency Flagging:** Scans active conversations for critical keywords (e.g., chest pain, severe weakness) and immediately halts the chat to issue emergency medical warnings before report generation.
+* **🔍 AI Trust Layer & Clinical Rationale:** Fully transparent diagnostic reports featuring an expandable clinical reasoning accordion and explicit confidence score metrics.
+* **💊 Safe & Guardrailed Advice:** Strictly limits suggestions to general OTC (Over-The-Counter) and home-care guidance. The AI is hardcoded to *never* prescribe exact medical dosages.
+* **🏥 Zero-Cost Hospital Locator:** Integrates free OpenStreetMap data to provide location-based hospital searches, complete with contact details, keeping infrastructure costs at zero.
+* **📱 Fully Responsive UI:** Accessible across desktop, tablet, and mobile devices with a full English/हिन्दी interface toggle.
+* **💾 Persistent Consultation History:** Safely stores chat transcripts, patient vitals, and final triage outcomes for future reference.
 
 ---
 
 ## 💬 A Sample Conversation
 
-    Patient:  mujhe 3 din se bukhar hai aur badan mein bahut dard hai
+```
+Patient:  mujhe 3 din se bukhar hai aur badan mein bahut dard hai
 
-    Sahaayak: Mujhe sunkar dukh hua ki aapko takleef ho rahi hai. Ye bukhar lagatar rehta hai, ya din ke kisi khaas waqt zyada badh jata hai?
+Sahaayak: Mujhe sunkar dukh hua ki aapko takleef ho rahi hai. Ye bukhar lagatar rehta hai, ya din ke kisi khaas waqt zyada badh jata hai?
 
-    Patient:  thoda cough bhi hai, aur fever raat ko zyada badh jata hai
+Patient:  thoda cough bhi hai, aur fever raat ko zyada badh jata hai
 
-    Sahaayak: → Urgency: Medium
-              → Suggested specialist: General Physician
-              → Home care: fluids, rest, paracetamol per standard OTC dosing
-              → Flagged: seek in-person care if fever crosses 103°F or persists past 5 days
+Sahaayak: → Urgency: Medium
+          → Suggested specialist: General Physician
+          → Home care: fluids, rest, paracetamol per standard OTC dosing
+          → Flagged: seek in-person care if fever crosses 103°F or persists past 5 days
+```
 
 *Note: Everything following the conversation—the urgency score, specialist match, and care notes—is dynamically generated by our robust backend pipeline, not hardcoded scripts.*
 
@@ -55,14 +51,16 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
 
 ## 🏗️ System Architecture
 
-    flowchart LR
-        U[Patient] -->|Hindi / English / Hinglish| FE[React Frontend]
-        FE <-->|HTTPS + JWT| BE[FastAPI Backend]
-        BE <--> LLM["Groq · Llama 3.3 70B<br/>strict clinical persona & verification"]
-        BE <--> VDB["OpenSearch (k-NN)<br/>semantic symptom index"]
-        BE <--> EMB["Sentence-Transformers<br/>multilingual embeddings"]
-        BE --> DB[(SQLite)]
-        BE <--> OSM["Overpass / Nominatim<br/>OpenStreetMap"]
+```mermaid
+flowchart LR
+    U[Patient] -->|Hindi / English / Hinglish| FE[React Frontend]
+    FE <-->|HTTPS + JWT| BE[FastAPI Backend]
+    BE <--> LLM["Groq · Llama 3.3 70B<br/>strict clinical persona & verification"]
+    BE <--> VDB["OpenSearch (k-NN)<br/>semantic symptom index"]
+    BE <--> EMB["Sentence-Transformers<br/>multilingual embeddings"]
+    BE --> DB[(SQLite)]
+    BE <--> OSM["Overpass / Nominatim<br/>OpenStreetMap"]
+```
 
 ### Why this architecture?
 
@@ -108,7 +106,9 @@ python evaluate_end_to_end.py
 
 after `build_semantic_index.py` (it reuses the already-built index and the same held-out rows). This requires `GROQ_API_KEY` to be set, since it makes real verification calls. It reports end-to-end accuracy on all three eval sets plus a **verification override rate** — how often the Groq step actually changed the retrieval layer's top prediction — and writes `end_to_end_eval_results.json`. `view_metrics.py` will pick this file up automatically if it exists alongside `semantic_eval_results.json`.
 
-Known limitation: a handful of diseases with genuinely overlapping symptom profiles (e.g. Typhoid vs. Malaria, Bronchial Asthma vs. Heart Attack, Jaundice vs. Hepatitis B) are harder to separate on symptom text alone and are documented as an open limitation rather than papered over.
+**Known limitation:** a handful of diseases with genuinely overlapping symptom profiles (e.g. Typhoid vs. Malaria, Bronchial Asthma vs. Heart Attack, Jaundice vs. Hepatitis B) are harder to separate on symptom text alone and are documented as an open limitation rather than papered over.
+
+> **💡 Key Finding:** Our end-to-end evaluation revealed that while secondary LLM verification acts as a powerful restorative filter for noisy, real-world vernacular queries, it can aggressively over-correct standard clinical data. This empirical insight directly drives Sahaayak's strict confidence-gated architecture.
 
 ---
 
@@ -127,56 +127,67 @@ Before you begin, ensure you have the following installed:
 
 **1. Clone the Repository**
 
-    git clone https://github.com/vickbhor/Sahaayak.git
-    cd Sahaayak
+```bash
+git clone https://github.com/vickbhor/Sahaayak.git
+cd Sahaayak
+```
 
 **2. Start OpenSearch (Vector Database)**
 
-    # Navigate to the semantic scripts directory
-    cd sementic/scripts
-    docker compose up -d
+```bash
+# Navigate to the semantic scripts directory
+cd sementic/scripts
+docker compose up -d
+```
 
 **3. Backend Configuration & Model Training**
 
-    # Open a new terminal and setup Python Virtual Environment
-    cd backend
-    python -m venv venv
+```bash
+# Open a new terminal and setup Python Virtual Environment
+cd backend
+python -m venv venv
 
-    # Activate Virtual Environment
-    venv\Scripts\activate        # For Windows
-    source venv/bin/activate     # For macOS/Linux
+# Activate Virtual Environment
+venv\Scripts\activate        # For Windows
+source venv/bin/activate     # For macOS/Linux
 
-    # Install Dependencies
-    pip install -r requirements.txt
+# Install Dependencies
+pip install -r requirements.txt
+```
 
 * Copy `.env.example` to `.env` in the `backend/` directory and fill in your own `GROQ_API_KEY`, `JWT_SECRET`, and OpenSearch credentials. **Never commit `.env` itself** — it's already covered by `.gitignore`; only `.env.example` (with blank values) should be tracked in git.
-
 * **Build the Semantic Index:** Navigate to the scripts folder to train the model and populate OpenSearch.
-    ```bash
-    cd ../sementic/scripts
-    python build_semantic_index.py
-    ```
-    This single command builds the index **and** prints the full evaluation report described above (split/holdout/paraphrase accuracy + K-sweep table) — no separate step needed.
+
+```bash
+cd ../sementic/scripts
+python build_semantic_index.py
+```
+
+  This single command builds the index **and** prints the full evaluation report described above (split/holdout/paraphrase accuracy + K-sweep table) — no separate step needed.
 
 * **📊 View AI Performance Metrics (Optional but highly recommended!):**
   Want to revisit the accuracy report without rebuilding the index? Run:
-    ```bash
-    python view_metrics.py
-    ```
+
+```bash
+python view_metrics.py
+```
 
 * **Start the FastAPI server:**
-    ```bash
-    cd ../../backend
-    python app.py
-    ```
+
+```bash
+cd ../../backend
+python app.py
+```
 
 > **Note:** The backend serves at `http://localhost:8000`. Interactive API documentation (Swagger UI) is available at `/docs`.
 
 **4. Frontend Configuration**
 
-    cd ../frontend
-    npm install
-    npm start
+```bash
+cd ../frontend
+npm install
+npm start
+```
 
 > **Note:** The frontend application will run on `http://localhost:3000`.
 
@@ -184,32 +195,34 @@ Before you begin, ensure you have the following installed:
 
 ## 📂 Repository Layout
 
-    Sahaayak/
-    ├── backend/
-    │   ├── app.py                     # Core FastAPI routes & endpoints
-    │   ├── auth.py                    # JWT generation & password hashing
-    │   ├── database.py                # SQLite models & ORM queries
-    │   ├── semantic_classifier.py     # OpenSearch & vector retrieval logic
-    │   ├── groq_helpers.py            # Conversation, reasoning extractor & verification
-    │   ├── hospitals.py               # OpenStreetMap hospital search integration
-    │   ├── models/                    # ML model artifacts (hingrobert_model)
-    │   ├── .env.example               # Environment variables template (no real secrets — copy to .env and fill in)
-    │   ├── SETUP.md                   # Detailed setup instructions
-    │   └── requirements.txt           # Python dependencies (incl. email-validator)
-    ├── sementic/
-    │   └── scripts/
-    │       ├── build_semantic_index.py    # Builds the vector index + prints accuracy/per-class/K-sweep report
-    │       ├── evaluate_end_to_end.py     # Evaluates the full pipeline (retrieval + Groq verification + red-flag escalation)
-    │       ├── view_metrics.py            # Re-displays the last AI accuracy & performance report (retrieval-only + end-to-end, if run)
-    │       ├── embedder.py                # Multilingual embedding generation
-    │       ├── docker-compose.yml         # OpenSearch container configuration
-    │       └── phase1_artifacts/          # Training pool (cv_pool*.csv), holdout set, and disease labels
-    └── frontend/
-        └── src/
-            ├── pages/                 # Landing, Login, Signup, Dashboard, Consultation, ReportDetail
-            ├── components/            # Sidebar, VitalsIntake, TriageDemoPanel, Logo, LanguageSelect
-            ├── context/               # AuthContext, LanguageContext
-            └── i18n/                  # English / Hindi localization mappings
+```
+Sahaayak/
+├── backend/
+│   ├── app.py                     # Core FastAPI routes & endpoints
+│   ├── auth.py                    # JWT generation & password hashing
+│   ├── database.py                # SQLite models & ORM queries
+│   ├── semantic_classifier.py     # OpenSearch & vector retrieval logic
+│   ├── groq_helpers.py            # Conversation, reasoning extractor & verification
+│   ├── hospitals.py               # OpenStreetMap hospital search integration
+│   ├── models/                    # ML model artifacts (hingrobert_model)
+│   ├── .env.example               # Environment variables template (no real secrets — copy to .env and fill in)
+│   ├── SETUP.md                   # Detailed setup instructions
+│   └── requirements.txt           # Python dependencies (incl. email-validator)
+├── sementic/
+│   └── scripts/
+│       ├── build_semantic_index.py    # Builds the vector index + prints accuracy/per-class/K-sweep report
+│       ├── evaluate_end_to_end.py     # Evaluates the full pipeline (retrieval + Groq verification + red-flag escalation)
+│       ├── view_metrics.py            # Re-displays the last AI accuracy & performance report (retrieval-only + end-to-end, if run)
+│       ├── embedder.py                # Multilingual embedding generation
+│       ├── docker-compose.yml         # OpenSearch container configuration
+│       └── phase1_artifacts/          # Training pool (cv_pool*.csv), holdout set, and disease labels
+└── frontend/
+    └── src/
+        ├── pages/                 # Landing, Login, Signup, Dashboard, Consultation, ReportDetail
+        ├── components/            # Sidebar, VitalsIntake, TriageDemoPanel, Logo, LanguageSelect
+        ├── context/               # AuthContext, LanguageContext
+        └── i18n/                  # English / Hindi localization mappings
+```
 
 ## 🔌 API Reference
 
@@ -258,4 +271,4 @@ The system provides general insights based on reported symptoms. In the event of
 
 ## 📄 License
 
-This project is licensed under the MIT License — see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

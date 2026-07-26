@@ -1,0 +1,528 @@
+diff --git a/README.md b/README.md
+index 224e1c5..4f8028c 100644
+--- a/README.md
++++ b/README.md
+@@ -3,7 +3,7 @@
+ > **An intelligent triage assistant designed to meet patients in the language they actually speak — Hindi, English, or the Hinglish in between.**
+ 
+ [![Python](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
+-[![React](https://img.shields.io/badge/react-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
++[![React](https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+ [![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+ [![OpenSearch](https://img.shields.io/badge/OpenSearch-k--NN-005EB8?logo=opensearch&logoColor=white)](https://opensearch.org/)
+ [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
+@@ -77,7 +77,7 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
+ 
+ | Domain | Technology / Tool |
+ | --- | --- |
+-| **Frontend** | React 18, React Router, Axios, jsPDF, lucide-react |
++| **Frontend** | React 19, React Router, Axios, jsPDF, lucide-react |
+ | **Backend** | FastAPI, Uvicorn, Pydantic, email-validator |
+ | **AI & LLM** | Groq (Llama 3.3 70B Versatile) |
+ | **Search & Retrieval** | OpenSearch (k-NN), HuggingFace Sentence-Transformers |
+@@ -94,11 +94,20 @@ The k-NN symptom classifier is evaluated automatically every time the index is b
+ Running `build_semantic_index.py` reports:
+ 
+ * **70:30 split accuracy** and **untouched holdout accuracy** — standard generalization checks.
+-* **Paraphrase accuracy** — a fixed set of 12 hand-written, differently-worded symptom descriptions (one per commonly confused disease) that never appear in training data, used to sanity-check that the model generalizes to real-world phrasing rather than memorizing exact wording.
++* **Per-class precision / recall / F1** on the 70:30 split, printed to console and saved in `semantic_eval_results.json`. Raw accuracy alone can hide class imbalance — several CRITICAL-urgency diseases (Heart Attack, AIDS, Paralysis) have far fewer training examples than common ones, so this breaks the aggregate number down by disease instead of relying on one blended figure.
++* **Paraphrase accuracy** — 41 hand-written, differently-worded symptom descriptions, one per disease class (up from an earlier 12-case set covering only a third of the classes), that never appear in training data. Used to sanity-check that the model generalizes to real-world phrasing rather than memorizing exact wording, and now gives full-coverage, per-class signal instead of a small sample with a wide confidence interval.
+ * **K-sweep comparison** — the same index is queried at `K = 3, 5, 7, 9` (in addition to whatever `SEMANTIC_K` is set to) so you can see which K value gives the best paraphrase accuracy *without re-embedding or re-indexing*, since K is a query-time parameter only. Pick the best-performing K and set it permanently via `SEMANTIC_K` in `.env`.
+ 
+ This run is deterministic (fixed `random_state` for the train/test split) and safe to re-run as many times as needed — it overwrites `semantic_eval_results.json` and the OpenSearch index in place rather than accumulating files or duplicate indices.
+ 
++**End-to-end pipeline evaluation:** the eval above only measures the raw k-NN retrieval layer. To evaluate the *full* pipeline — retrieval + Groq LLM verification + red-flag escalation, i.e. exactly what a live request goes through — run:
++
++```bash
++python evaluate_end_to_end.py
++```
++
++after `build_semantic_index.py` (it reuses the already-built index and the same held-out rows). This requires `GROQ_API_KEY` to be set, since it makes real verification calls. It reports end-to-end accuracy on all three eval sets plus a **verification override rate** — how often the Groq step actually changed the retrieval layer's top prediction — and writes `end_to_end_eval_results.json`. `view_metrics.py` will pick this file up automatically if it exists alongside `semantic_eval_results.json`.
++
+ Known limitation: a handful of diseases with genuinely overlapping symptom profiles (e.g. Typhoid vs. Malaria, Bronchial Asthma vs. Heart Attack, Jaundice vs. Hepatitis B) are harder to separate on symptom text alone and are documented as an open limitation rather than papered over.
+ 
+ ---
+@@ -189,8 +198,9 @@ Before you begin, ensure you have the following installed:
+     │   └── requirements.txt           # Python dependencies (incl. email-validator)
+     ├── sementic/
+     │   └── scripts/
+-    │       ├── build_semantic_index.py    # Builds the vector index + prints accuracy/K-sweep report
+-    │       ├── view_metrics.py            # Re-displays the last AI accuracy & performance report
++    │       ├── build_semantic_index.py    # Builds the vector index + prints accuracy/per-class/K-sweep report
++    │       ├── evaluate_end_to_end.py     # Evaluates the full pipeline (retrieval + Groq verification + red-flag escalation)
++    │       ├── view_metrics.py            # Re-displays the last AI accuracy & performance report (retrieval-only + end-to-end, if run)
+     │       ├── embedder.py                # Multilingual embedding generation
+     │       ├── docker-compose.yml         # OpenSearch container configuration
+     │       └── phase1_artifacts/          # Training pool (cv_pool*.csv), holdout set, and disease labels
+diff --git a/backend/.env.example b/backend/.env.example
+new file mode 100644
+index 0000000..1fff250
+--- /dev/null
++++ b/backend/.env.example
+@@ -0,0 +1,29 @@
++# Copy this file to .env in the backend/ directory and fill in real values.
++# Never commit the actual .env file (it's already in .gitignore).
++
++# --- Groq (LLM) ---
++# Get a free key at https://console.groq.com
++GROQ_API_KEY=
++
++# --- Auth ---
++# Any long random string. Used to sign JWTs -- keep this secret in production.
++JWT_SECRET=change-this-to-a-long-random-secret
++
++# --- OpenSearch (semantic symptom index) ---
++OPENSEARCH_HOST=localhost
++OPENSEARCH_PORT=9200
++OPENSEARCH_USER=admin
++OPENSEARCH_PASS=admin
++OPENSEARCH_USE_SSL=false
++OPENSEARCH_INDEX=sahaayak-symptoms
++
++# --- Semantic classifier ---
++# Number of nearest neighbors used at query time. Tune this using the
++# K-sweep table printed by build_semantic_index.py, then set the winning
++# value here permanently.
++SEMANTIC_K=5
++
++# --- Fallback behavior ---
++# If "true", the classifier skips OpenSearch entirely and runs in a
++# degraded fallback mode (useful for local dev without Docker running).
++FALLBACK_MODE=false
+diff --git a/backend/classifier.py b/backend/classifier.py
+index fb96eaa..a5be3a7 100644
+--- a/backend/classifier.py
++++ b/backend/classifier.py
+@@ -1,3 +1,14 @@
++"""
++LEGACY / ARCHIVED -- not used by the running app.
++
++This is the earlier TF-IDF + PyTorch (24-class, "hingrobert_model") classifier
++that was superseded by the OpenSearch k-NN + Sentence-Transformers pipeline in
++semantic_classifier.py. It's kept here only for historical reference (it's
++referenced as an "earlier iteration" in the accompanying paper) and is not
++imported anywhere in app.py's active request path. Safe to move to an
++archive/ folder in a future cleanup; not deleted here to avoid breaking any
++existing import elsewhere without a full grep-and-verify pass first.
++"""
+ import os
+ 
+ TORCH_AVAILABLE = True
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index 3ecaa7b..2586e25 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -10,3 +10,6 @@ numpy==2.4.6
+ PyJWT==2.10.1
+ httpx==0.28.1
+ email-validator
++pandas==2.2.3
++sentence-transformers==3.3.1
++opensearch-py==2.8.0
+diff --git a/frontend/src/translations.js b/frontend/src/translations.js
+deleted file mode 100644
+index 3fb13f0..0000000
+--- a/frontend/src/translations.js
++++ /dev/null
+@@ -1,101 +0,0 @@
+-const translations = {
+-  tagline: { en: 'AI Assistant', hi: 'एआई सहायक' },
+-  newConsultation: { en: '+ New Consultation', hi: '+ नई सलाह' },
+-  navDashboard: { en: 'Dashboard', hi: 'डैशबोर्ड' },
+-  navConsultation: { en: 'Consultation', hi: 'परामर्श' },
+-  navReports: { en: 'Reports', hi: 'रिपोर्ट्स' },
+-  navMedications: { en: 'Medications', hi: 'दवाइयाँ' },
+-  navSupport: { en: 'Support', hi: 'सहायता' },
+-  logout: { en: 'Logout', hi: 'लॉग आउट' },
+-
+-  loginWelcome: { en: 'Welcome back', hi: 'वापसी पर स्वागत है' },
+-  loginSubtitle: { en: 'Sign in to continue your health journey.', hi: 'अपनी स्वास्थ्य यात्रा जारी रखने के लिए साइन इन करें।' },
+-  emailLabel: { en: 'Email', hi: 'ईमेल' },
+-  passwordLabel: { en: 'Password', hi: 'पासवर्ड' },
+-  signIn: { en: 'Sign In', hi: 'साइन इन करें' },
+-  signingIn: { en: 'Signing in...', hi: 'साइन इन हो रहा है...' },
+-  noAccount: { en: "Don't have an account?", hi: 'खाता नहीं है?' },
+-  createOne: { en: 'Create one', hi: 'एक बनाएं' },
+-
+-  signupTitle: { en: 'Create your account', hi: 'अपना खाता बनाएं' },
+-  signupSubtitle: { en: 'Start getting AI-assisted triage in seconds.', hi: 'सेकंडों में एआई-सहायता प्राप्त ट्राइएज शुरू करें।' },
+-  fullName: { en: 'Full Name', hi: 'पूरा नाम' },
+-  phoneOptional: { en: 'Phone (optional)', hi: 'फ़ोन (वैकल्पिक)' },
+-  confirmPassword: { en: 'Confirm', hi: 'पुष्टि करें' },
+-  createAccount: { en: 'Create Account', hi: 'खाता बनाएं' },
+-  creatingAccount: { en: 'Creating account...', hi: 'खाता बन रहा है...' },
+-  haveAccount: { en: 'Already have an account?', hi: 'पहले से खाता है?' },
+-  signInLink: { en: 'Sign in', hi: 'साइन इन करें' },
+-
+-  dashboardHeader: { en: 'Sahaayak AI - Patient Dashboard', hi: 'सहायक एआई - मरीज़ डैशबोर्ड' },
+-  welcomeBack: { en: 'Welcome back', hi: 'वापसी पर स्वागत है' },
+-  dashboardIntro: { en: 'Your health overview is looking stable today. Dr. Sahaayak has analyzed your recent vitals.', hi: 'आज आपका स्वास्थ्य विवरण स्थिर दिख रहा है। डॉ. सहायक ने आपके हाल के वाइटल्स का विश्लेषण किया है।' },
+-  startConsultation: { en: 'Start New Consultation', hi: 'नई सलाह शुरू करें' },
+-  aiInsight: { en: '✨ AI Health Insight', hi: '✨ एआई स्वास्थ्य सुझाव' },
+-  latestVitals: { en: 'Latest Vitals Summary', hi: 'नवीनतम वाइटल्स सारांश' },
+-  recentReports: { en: 'Recent Reports', hi: 'हाल की रिपोर्ट्स' },
+-  noReportsYetShort: { en: 'No consultations yet. Start one to see it here.', hi: 'अभी तक कोई सलाह नहीं। यहाँ देखने के लिए एक शुरू करें।' },
+-
+-  newConsultationTitle: { en: 'New Consultation', hi: 'नई सलाह' },
+-  quickIntake: { en: 'Quick intake', hi: 'शीघ्र जानकारी' },
+-  consultationTitle: { en: 'Consultation', hi: 'परामर्श' },
+-  assistantOnline: { en: 'AI Assistant Online', hi: 'एआई सहायक ऑनलाइन' },
+-  beforeWeBegin: { en: 'Before we begin', hi: 'शुरू करने से पहले' },
+-  intakeSubtitle: { en: 'Sharing a few quick details helps Dr. Sahaayak triage you more accurately. Everything here is optional.', hi: 'कुछ जल्दी जानकारी साझा करने से डॉ. सहायक को अधिक सटीक जांच में मदद मिलती है। यहाँ सब कुछ वैकल्पिक है।' },
+-  age: { en: 'Age', hi: 'उम्र' },
+-  gender: { en: 'Gender', hi: 'लिंग' },
+-  select: { en: 'Select', hi: 'चुनें' },
+-  male: { en: 'Male', hi: 'पुरुष' },
+-  female: { en: 'Female', hi: 'महिला' },
+-  other: { en: 'Other', hi: 'अन्य' },
+-  vitalsIfKnown: { en: 'Vitals (if known)', hi: 'वाइटल्स (यदि ज्ञात हों)' },
+-  temperature: { en: 'Temperature', hi: 'तापमान' },
+-  heartRate: { en: 'Heart Rate', hi: 'हृदय गति' },
+-  bloodPressure: { en: 'Blood Pressure', hi: 'ब्लड प्रेशर' },
+-  spo2: { en: 'SpO2', hi: 'SpO2' },
+-  allergies: { en: 'Known Allergies', hi: 'ज्ञात एलर्जी' },
+-  conditions: { en: 'Existing Conditions', hi: 'मौजूदा बीमारियाँ' },
+-  skipForNow: { en: 'Skip for now', hi: 'अभी छोड़ें' },
+-  continueToConsultation: { en: 'Continue to Consultation', hi: 'परामर्श जारी रखें' },
+-  chatPlaceholder: { en: 'Type your symptoms or questions here...', hi: 'यहाँ अपने लक्षण या सवाल लिखें...' },
+-  generateReport: { en: 'Generate Diagnostic Report', hi: 'निदान रिपोर्ट बनाएं' },
+-  generatingReport: { en: 'Generating Report...', hi: 'रिपोर्ट बन रही है...' },
+-
+-  yourReports: { en: 'Your Reports', hi: 'आपकी रिपोर्ट्स' },
+-  allSavedConsultations: { en: 'All saved consultations', hi: 'सभी सहेजी गई सलाह' },
+-  noReportsYet: { en: 'No reports yet', hi: 'अभी तक कोई रिपोर्ट नहीं' },
+-  noReportsBody: { en: 'Start a consultation with Dr. Sahaayak to generate your first diagnostic report.', hi: 'अपनी पहली निदान रिपोर्ट बनाने के लिए डॉ. सहायक से सलाह शुरू करें।' },
+-
+-  diagnosticReport: { en: 'Diagnostic Report', hi: 'निदान रिपोर्ट' },
+-  aiAssessment: { en: 'AI Assessment', hi: 'एआई मूल्यांकन' },
+-  suggestedActions: { en: 'Suggested Actions', hi: 'सुझाए गए कदम' },
+-  vitalsRecorded: { en: 'Vitals Recorded', hi: 'दर्ज वाइटल्स' },
+-  suggestedMedicines: { en: 'Suggested Medicines / Home Care', hi: 'सुझाई गई दवाइयाँ / घरेलू देखभाल' },
+-  conversationTranscript: { en: 'Conversation Transcript', hi: 'बातचीत का विवरण' },
+-  downloadPDF: { en: 'Download PDF', hi: 'पीडीएफ डाउनलोड करें' },
+-  medDisclaimer: { en: 'These are general suggestions from an AI assistant, not a prescription. Always confirm with a doctor or pharmacist before use.', hi: 'ये एआई सहायक के सामान्य सुझाव हैं, कोई नुस्खा नहीं। उपयोग से पहले हमेशा डॉक्टर या फार्मासिस्ट से पुष्टि करें।' },
+-
+-  medicationsHeader: { en: 'Medications', hi: 'दवाइयाँ' },
+-  medicationsSubtitle: { en: 'Suggested across all your consultations', hi: 'आपकी सभी सलाहों में सुझाई गई' },
+-  noMedsYet: { en: 'No medications yet', hi: 'अभी तक कोई दवा नहीं' },
+-  noMedsBody: { en: 'Once Dr. Sahaayak suggests any over-the-counter or home-care items during a consultation, they will show up here.', hi: 'जब भी डॉ. सहायक किसी सलाह के दौरान कोई दवा या घरेलू उपाय सुझाएंगे, वह यहाँ दिखेगा।' },
+-
+-  supportHeader: { en: 'Support', hi: 'सहायता' },
+-  supportSubtitle: { en: 'Find nearby hospitals & emergency care', hi: 'नज़दीकी अस्पताल और आपातकालीन सेवा खोजें' },
+-  whereAreYou: { en: 'Where are you right now?', hi: 'आप अभी कहाँ हैं?' },
+-  supportIntro: { en: 'Share your location, or search by city / area, to find the nearest hospitals and clinics.', hi: 'नज़दीकी अस्पताल और क्लिनिक खोजने के लिए अपनी जगह साझा करें, या शहर / क्षेत्र से खोजें।' },
+-  useMyLocation: { en: 'Use My Current Location', hi: 'मेरी वर्तमान जगह उपयोग करें' },
+-  gettingLocation: { en: 'Getting your location...', hi: 'आपकी जगह पता की जा रही है...' },
+-  orDivider: { en: 'or', hi: 'या' },
+-  searchPlaceholder: { en: 'Enter city, area or pincode e.g. Noida, 201301', hi: 'शहर, क्षेत्र या पिनकोड लिखें जैसे नोएडा, 201301' },
+-  showingResultsNear: { en: 'Showing results near', hi: 'यहाँ के नज़दीक परिणाम दिखा रहे हैं' },
+-  noHospitalsFound: { en: 'No hospitals found nearby', hi: 'नज़दीक कोई अस्पताल नहीं मिला' },
+-  tryBiggerCity: { en: 'Try searching a bigger nearby town or city.', hi: 'किसी बड़े नज़दीकी शहर से खोजने की कोशिश करें।' },
+-  callNow: { en: 'Call', hi: 'कॉल करें' },
+-  copy: { en: 'Copy', hi: 'कॉपी करें' },
+-  copied: { en: 'Copied', hi: 'कॉपी हो गया' },
+-  phoneNotListed: { en: 'Phone number not listed', hi: 'फ़ोन नंबर उपलब्ध नहीं है' },
+-  emergencyServices: { en: 'Emergency Services', hi: 'आपातकालीन सेवा' }
+-};
+-
+-export default translations;
+diff --git a/sementic/scripts/build_semantic_index.py b/sementic/scripts/build_semantic_index.py
+index cea0a15..6771c0f 100644
+--- a/sementic/scripts/build_semantic_index.py
++++ b/sementic/scripts/build_semantic_index.py
+@@ -18,6 +18,7 @@ else:
+ import numpy as np
+ import pandas as pd
+ from sklearn.model_selection import train_test_split
++from sklearn.metrics import classification_report
+ 
+ from embedder import MultilingualEmbedder
+ 
+@@ -44,19 +45,56 @@ INDEX_NAME = os.getenv("OPENSEARCH_INDEX", "sahaayak-symptoms")
+ K = int(os.getenv("SEMANTIC_K", "5"))
+ K_SWEEP = [3, 5, 7, 9]  # evaluated in addition to K, no re-indexing needed
+ 
++# Expanded from the original 12-case set to one paraphrased case per class
++# (41/41 classes covered, up from 12/41). Each row is a hand-written,
++# differently-worded restatement of that disease's typical presentation --
++# never copied from cv_pool_v4.csv/holdout.csv -- so this still measures
++# generalization to novel phrasing rather than memorized wording. The
++# previous 12-case set had a Wilson 95% CI of roughly 39-86%, too wide to be
++# a meaningful headline number; a full 41-case set narrows that considerably
++# and gives per-class signal instead of a single aggregate.
+ PARAPHRASE_CASES = [
+-    ("high fever, headache, body ache, chills, nausea", "Typhoid"),
+-    ("high fever, joint pain, rash, pain behind the eyes, vomiting", "Dengue"),
+-    ("chest pain, sweating, breathlessness, pain radiating to left arm", "Heart Attack"),
+-    ("cyclical fever, chills, sweating, headache, nausea", "Malaria"),
+-    ("cough, runny nose, sneezing, mild fever, sore throat", "Common Cold"),
+-    ("wheezing, breathlessness, chest tightness, cough", "Bronchial Asthma"),
+-    ("yellowing of skin, yellowing of eyes, dark urine, fatigue", "Jaundice"),
+-    ("burning urination, frequent urination, lower abdominal pain", "Urinary Tract Infection"),
+-    ("throbbing headache, nausea, sensitivity to light", "Migraine"),
+-    ("itching, skin rash, red spots, dischromic patches", "Fungal Infection"),
+-    ("persistent cough, weight loss, night sweats, blood in sputum", "Tuberculosis"),
+-    ("excessive thirst, frequent urination, fatigue, blurred vision", "Diabetes"),
++    ("severe muscle wasting, chronic diarrhea, recurring infections, very low immunity", "AIDS"),
++    ("blackheads and whiteheads on face, oily skin, occasional painful pimples", "Acne"),
++    ("swollen belly, yellowish eyes, loss of appetite after years of heavy drinking", "Alcoholic Hepatitis"),
++    ("sneezing fits, itchy watery eyes, runny nose after being near dust or pollen", "Allergy"),
++    ("stiff and swollen finger joints, worse in the morning, painful to grip things", "Arthritis"),
++    ("tight chest, whistling sound while breathing, breathless after light exertion", "Bronchial Asthma"),
++    ("stiff neck, tingling down the arm, dull ache at the back of the head", "Cervical Spondylosis"),
++    ("itchy fluid-filled blisters all over the body, mild fever, came on over a day", "Chicken Pox"),
++    ("persistent itching all over the body, pale stools, yellow-tinted skin", "Chronic Cholestasis"),
++    ("blocked nose, mild throat irritation, sneezing, no high fever", "Common Cold"),
++    ("sudden high fever, severe joint and muscle pain, rash, pain behind the eyes", "Dengue"),
++    ("always thirsty, urinating a lot, unexplained weight loss, tired all the time", "Diabetes"),
++    ("painful lump near the anus, bleeding during bowel movements, discomfort sitting", "Dimorphic Hemorrhoids"),
++    ("skin rash and itching that started right after starting a new tablet", "Drug Reaction"),
++    ("ring-shaped itchy rash on the skin, flaky patches that won't go away", "Fungal Infection"),
++    ("watery loose motions, stomach cramps, mild fever, feeling dehydrated", "Gastroenteritis"),
++    ("burning sensation in the chest after meals, sour taste rising in the throat", "Gastroesophageal Reflux Disease"),
++    ("crushing chest pressure, sweating heavily, pain shooting down the left arm", "Heart Attack"),
++    ("sudden nausea and fatigue, mild fever, slight yellowing of the eyes, short-lived", "Hepatitis A"),
++    ("long-standing fatigue, joint pain, dark urine, yellowing skin, history of exposure", "Hepatitis B"),
++    ("chronic tiredness, mild abdominal discomfort, gradually worsening jaundice", "Hepatitis C"),
++    ("sudden worsening of existing liver disease, jaundice, severe fatigue", "Hepatitis D"),
++    ("acute jaundice and nausea in a pregnant woman, contaminated water exposure", "Hepatitis E"),
++    ("frequent headaches, chest discomfort, consistently high blood pressure readings", "Hypertension"),
++    ("racing heartbeat, unexplained weight loss, sweating, hand tremors", "Hyperthyroidism"),
++    ("shakiness, cold sweats, confusion, hunger between meals, low blood sugar reading", "Hypoglycemia"),
++    ("constant tiredness, weight gain, feeling cold all the time, dry skin", "Hypothyroidism"),
++    ("honey-colored crusty sores around the mouth and nose, mildly itchy", "Impetigo"),
++    ("yellow tint to the skin and eyes, dark-colored urine, general weakness", "Jaundice"),
++    ("recurring bouts of high fever with chills and sweating every couple of days", "Malaria"),
++    ("throbbing one-sided headache, nausea, can't stand bright light", "Migraine"),
++    ("knee and hip pain that's worse after activity, stiffness that eases with movement", "Osteoarthritis"),
++    ("sudden weakness down one side of the body, difficulty speaking, severe headache", "Paralysis (Brain Hemorrhage)"),
++    ("gnawing pain in the upper stomach that worsens on an empty stomach", "Peptic Ulcer Disease"),
++    ("high fever with chills, cough with phlegm, sharp pain on breathing in", "Pneumonia"),
++    ("thick silvery scaly patches on the skin, itching, worse on elbows and scalp", "Psoriasis"),
++    ("cough lasting for weeks, coughing up blood-tinged sputum, night sweats, weight loss", "Tuberculosis"),
++    ("prolonged fever that steps up gradually day by day, stomach pain, weakness", "Typhoid"),
++    ("stinging pain while urinating, needing to urinate often, cloudy urine", "Urinary Tract Infection"),
++    ("bulging, twisted veins visible under the skin on the legs, heaviness by evening", "Varicose Veins"),
++    ("spinning sensation when turning the head, brief episodes, mild nausea", "Vertigo (Benign Paroxysmal Positional)"),
+ ]
+ 
+ 
+@@ -169,6 +207,26 @@ def main():
+     test_acc, test_rows = evaluate(client, embedder, test_df)
+     print(f"70:30 split test accuracy (k={K}): {test_acc:.3f}")
+ 
++    # --- Per-class precision/recall/F1 on the split test set ---
++    # Raw accuracy alone hides class imbalance: several CRITICAL-urgency
++    # diseases (Heart Attack=10, AIDS=9, Paralysis=9 total examples) have far
++    # fewer training examples than common LOW/MEDIUM ones (Chicken Pox=118,
++    # Diabetes=118), so a high overall accuracy could still mask the model
++    # doing poorly on exactly the cases where a miss is most dangerous.
++    y_true = [r["expected"] for r in test_rows]
++    y_pred = [r["predicted"] for r in test_rows]
++    per_class_report = classification_report(
++        y_true, y_pred, zero_division=0, output_dict=True
++    )
++    print("\n=== Per-class precision / recall / F1 (70:30 split test set) ===")
++    print(f"{'Disease':38s} | {'Prec':>6} | {'Recall':>6} | {'F1':>6} | {'Support':>7}")
++    for disease, m in sorted(per_class_report.items(), key=lambda kv: kv[1].get("support", 0) if isinstance(kv[1], dict) else 0):
++        if disease in ("accuracy", "macro avg", "weighted avg"):
++            continue
++        print(f"{disease:38s} | {m['precision']:6.2f} | {m['recall']:6.2f} | {m['f1-score']:6.2f} | {int(m['support']):7d}")
++    macro = per_class_report["macro avg"]
++    print(f"{'MACRO AVG (unweighted across classes)':38s} | {macro['precision']:6.2f} | {macro['recall']:6.2f} | {macro['f1-score']:6.2f} |")
++
+     holdout_acc, holdout_rows = evaluate(client, embedder, holdout)
+     print(f"Untouched holdout accuracy (k={K}): {holdout_acc:.3f}")
+ 
+@@ -182,6 +240,7 @@ def main():
+     with open("semantic_eval_results.json", "w") as f:
+         json.dump({
+             "split_test_accuracy": test_acc,
++            "split_test_per_class_report": per_class_report,
+             "holdout_accuracy": holdout_acc,
+             "paraphrase_accuracy": para_acc,
+             "paraphrase_rows": para_rows,
+diff --git a/sementic/scripts/evaluate_end_to_end.py b/sementic/scripts/evaluate_end_to_end.py
+new file mode 100644
+index 0000000..54b2150
+--- /dev/null
++++ b/sementic/scripts/evaluate_end_to_end.py
+@@ -0,0 +1,129 @@
++"""
++End-to-end pipeline evaluation.
++
++build_semantic_index.py's evaluate() only measures the raw k-NN retrieval
++layer (embed -> query OpenSearch -> majority vote). It never calls the Groq
++verification step or the red-flag escalation ratchet, even though both are
++already wired into SemanticMedicalClassifier.predict() in backend/. That gap
++was flagged as the paper's own "most consequential limitation" -- this script
++closes it by running the exact same predict() coroutine the live app uses,
++against the same three eval sets (70:30 split test, holdout, paraphrase), and
++reports:
++
++  - end-to-end accuracy on each set (retrieval + Groq verification combined)
++  - the Groq *override rate*: how often verification changed the retrieval
++    layer's top prediction (this is the number reviewers will ask for --
++    "how often does the LLM verification step actually do something?")
++  - confidence after the confidence-cap-on-override rule (min(confidence, 0.5))
++
++PREREQUISITE: run build_semantic_index.py first so the OpenSearch index is
++already populated with the *training* split (this script does NOT rebuild
++the index -- it reuses whatever is already indexed, and only evaluates
++end-to-end predictions on the held-out rows). It uses the identical
++random_state=42 / test_size=0.30 split as build_semantic_index.py so the
++"held-out" rows here are guaranteed to be the same rows that were excluded
++from the index, not rows the retrieval layer has already seen.
++
++Requires GROQ_API_KEY set (in backend/.env) since this exercises the real
++Groq verification call, not a mock.
++
++Usage:
++    python evaluate_end_to_end.py
++"""
++import asyncio
++import json
++import os
++import sys
++
++import pandas as pd
++from sklearn.model_selection import train_test_split
++from dotenv import load_dotenv
++
++SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
++BACKEND_DIR = os.path.join(SCRIPT_DIR, "..", "..", "backend")
++sys.path.insert(0, os.path.abspath(BACKEND_DIR))
++
++backend_env_path = os.path.join(BACKEND_DIR, ".env")
++if os.path.exists(backend_env_path):
++    load_dotenv(backend_env_path, override=True)
++else:
++    load_dotenv(override=True)
++
++from semantic_classifier import SemanticMedicalClassifier  # noqa: E402
++from build_semantic_index import CV_POOL, HOLDOUT, PARAPHRASE_CASES  # noqa: E402
++
++CV_POOL_PATH = os.path.join(SCRIPT_DIR, CV_POOL)
++HOLDOUT_PATH = os.path.join(SCRIPT_DIR, HOLDOUT)
++
++
++async def evaluate_set(classifier, df, set_name):
++    correct = 0
++    overridden = 0
++    rows = []
++    for _, row in df.iterrows():
++        symptoms, expected = row["symptom_text"], row["prognosis"]
++        result = await classifier.predict(symptoms)
++        predicted = result["predicted_disease"]
++        match = predicted == expected
++        # An "override" is detectable from the outside as confidence capped
++        # at <= 0.5 by the verification step (see semantic_classifier.py's
++        # `confidence = min(confidence, 0.5)` on disconfirm-with-alternative).
++        # This is a proxy, not a perfect signal, but it's the only one
++        # observable from predict()'s return value without changing its
++        # contract.
++        was_capped = result["confidence"] <= 0.5
++        overridden += was_capped
++        correct += match
++        rows.append({
++            "input": symptoms,
++            "expected": expected,
++            "predicted": predicted,
++            "confidence": result["confidence"],
++            "urgency": result["urgency"],
++            "match": match,
++            "verification_likely_overrode_retrieval": was_capped,
++        })
++    n = len(df)
++    print(f"\n=== {set_name} (n={n}) ===")
++    print(f"End-to-end accuracy (retrieval + Groq verification): {correct/n:.3f}")
++    print(f"Groq verification touched / capped confidence on: {overridden}/{n} ({overridden/n:.1%})")
++    return {
++        "accuracy": correct / n,
++        "override_rate": overridden / n,
++        "rows": rows,
++    }
++
++
++async def main():
++    classifier = SemanticMedicalClassifier()
++    if classifier.fallback_mode:
++        print(
++            "SemanticMedicalClassifier came up in FALLBACK_MODE, which means "
++            "either OpenSearch isn't reachable or the index doesn't exist yet. "
++            "Run build_semantic_index.py first, then re-run this script."
++        )
++        return
++
++    cv_pool = pd.read_csv(CV_POOL_PATH)
++    holdout = pd.read_csv(HOLDOUT_PATH)
++    para_df = pd.DataFrame(PARAPHRASE_CASES, columns=["symptom_text", "prognosis"])
++
++    # Same split as build_semantic_index.py -- these test_df rows were
++    # excluded from the index, so this is a fair end-to-end evaluation.
++    _, test_df = train_test_split(
++        cv_pool, test_size=0.30, random_state=42, stratify=cv_pool["prognosis"]
++    )
++
++    results = {}
++    results["split_test"] = await evaluate_set(classifier, test_df, "70:30 split test set")
++    results["holdout"] = await evaluate_set(classifier, holdout, "Untouched holdout set")
++    results["paraphrase"] = await evaluate_set(classifier, para_df, "Paraphrase set (41 cases)")
++
++    out_path = os.path.join(SCRIPT_DIR, "end_to_end_eval_results.json")
++    with open(out_path, "w") as f:
++        json.dump(results, f, indent=2)
++    print(f"\nWrote {out_path}")
++
++
++if __name__ == "__main__":
++    asyncio.run(main())
+diff --git a/sementic/scripts/view_metrics.py b/sementic/scripts/view_metrics.py
+index e69771c..be76a89 100644
+--- a/sementic/scripts/view_metrics.py
++++ b/sementic/scripts/view_metrics.py
+@@ -37,8 +37,41 @@ def display_metrics():
+         predicted = row['predicted']
+         
+         print(f"  {status} | Expected: {expected:<24} | Predicted: {predicted}")
+-        
+-    print("="*70 + "\n")
++
++    per_class = data.get('split_test_per_class_report')
++    if per_class:
++        print("-" * 70)
++        print(" 📊 PER-CLASS PRECISION / RECALL / F1 (70:30 split test set):\n")
++        print(f"  {'Disease':38s} | {'Prec':>6} | {'Recall':>6} | {'F1':>6} | {'Support':>7}")
++        for disease, m in sorted(per_class.items(), key=lambda kv: kv[1].get("support", 0) if isinstance(kv[1], dict) else 0):
++            if disease in ("accuracy", "macro avg", "weighted avg"):
++                continue
++            print(f"  {disease:38s} | {m['precision']:6.2f} | {m['recall']:6.2f} | {m['f1-score']:6.2f} | {int(m['support']):7d}")
++        macro = per_class.get("macro avg")
++        if macro:
++            print(f"  {'MACRO AVG':38s} | {macro['precision']:6.2f} | {macro['recall']:6.2f} | {macro['f1-score']:6.2f} |")
++
++    print("="*70)
++
++    e2e_path = "end_to_end_eval_results.json"
++    if os.path.exists(e2e_path):
++        with open(e2e_path, "r") as f:
++            e2e = json.load(f)
++        print("\n" + "="*70)
++        print(" 🔗 END-TO-END PIPELINE (retrieval + Groq verification) 🔗".center(70))
++        print("="*70)
++        for set_name, label in [("split_test", "70:30 split test"), ("holdout", "Holdout"), ("paraphrase", "Paraphrase (41 cases)")]:
++            if set_name in e2e:
++                acc = e2e[set_name]["accuracy"] * 100
++                ovr = e2e[set_name]["override_rate"] * 100
++                print(f" 🔹 {label:<20} : accuracy {acc:6.2f}% | verification-capped {ovr:5.1f}%")
++        print("="*70 + "\n")
++    else:
++        print(
++            "\nℹ️  No end-to-end results found. Run 'python evaluate_end_to_end.py' "
++            "(after build_semantic_index.py) to evaluate the full pipeline, not just "
++            "the retrieval layer.\n"
++        )
+ 
+ if __name__ == "__main__":
+     display_metrics()
+\ No newline at end of file

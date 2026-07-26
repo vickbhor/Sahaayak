@@ -1,3 +1,14 @@
+"""
+LEGACY / ARCHIVED -- not used by the running app.
+
+This is the earlier TF-IDF + PyTorch (24-class, "hingrobert_model") classifier
+that was superseded by the OpenSearch k-NN + Sentence-Transformers pipeline in
+semantic_classifier.py. It's kept here only for historical reference (it's
+referenced as an "earlier iteration" in the accompanying paper) and is not
+imported anywhere in app.py's active request path. Safe to move to an
+archive/ folder in a future cleanup; not deleted here to avoid breaking any
+existing import elsewhere without a full grep-and-verify pass first.
+"""
 import os
 
 TORCH_AVAILABLE = True

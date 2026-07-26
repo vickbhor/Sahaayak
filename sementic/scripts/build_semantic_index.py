@@ -18,6 +18,7 @@ else:
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
 
 from embedder import MultilingualEmbedder
 
@@ -44,19 +45,56 @@ INDEX_NAME = os.getenv("OPENSEARCH_INDEX", "sahaayak-symptoms")
 K = int(os.getenv("SEMANTIC_K", "5"))
 K_SWEEP = [3, 5, 7, 9]  # evaluated in addition to K, no re-indexing needed
 
+# Expanded from the original 12-case set to one paraphrased case per class
+# (41/41 classes covered, up from 12/41). Each row is a hand-written,
+# differently-worded restatement of that disease's typical presentation --
+# never copied from cv_pool_v4.csv/holdout.csv -- so this still measures
+# generalization to novel phrasing rather than memorized wording. The
+# previous 12-case set had a Wilson 95% CI of roughly 39-86%, too wide to be
+# a meaningful headline number; a full 41-case set narrows that considerably
+# and gives per-class signal instead of a single aggregate.
 PARAPHRASE_CASES = [
-    ("high fever, headache, body ache, chills, nausea", "Typhoid"),
-    ("high fever, joint pain, rash, pain behind the eyes, vomiting", "Dengue"),
-    ("chest pain, sweating, breathlessness, pain radiating to left arm", "Heart Attack"),
-    ("cyclical fever, chills, sweating, headache, nausea", "Malaria"),
-    ("cough, runny nose, sneezing, mild fever, sore throat", "Common Cold"),
-    ("wheezing, breathlessness, chest tightness, cough", "Bronchial Asthma"),
-    ("yellowing of skin, yellowing of eyes, dark urine, fatigue", "Jaundice"),
-    ("burning urination, frequent urination, lower abdominal pain", "Urinary Tract Infection"),
-    ("throbbing headache, nausea, sensitivity to light", "Migraine"),
-    ("itching, skin rash, red spots, dischromic patches", "Fungal Infection"),
-    ("persistent cough, weight loss, night sweats, blood in sputum", "Tuberculosis"),
-    ("excessive thirst, frequent urination, fatigue, blurred vision", "Diabetes"),
+    ("severe muscle wasting, chronic diarrhea, recurring infections, very low immunity", "AIDS"),
+    ("blackheads and whiteheads on face, oily skin, occasional painful pimples", "Acne"),
+    ("swollen belly, yellowish eyes, loss of appetite after years of heavy drinking", "Alcoholic Hepatitis"),
+    ("sneezing fits, itchy watery eyes, runny nose after being near dust or pollen", "Allergy"),
+    ("stiff and swollen finger joints, worse in the morning, painful to grip things", "Arthritis"),
+    ("tight chest, whistling sound while breathing, breathless after light exertion", "Bronchial Asthma"),
+    ("stiff neck, tingling down the arm, dull ache at the back of the head", "Cervical Spondylosis"),
+    ("itchy fluid-filled blisters all over the body, mild fever, came on over a day", "Chicken Pox"),
+    ("persistent itching all over the body, pale stools, yellow-tinted skin", "Chronic Cholestasis"),
+    ("blocked nose, mild throat irritation, sneezing, no high fever", "Common Cold"),
+    ("sudden high fever, severe joint and muscle pain, rash, pain behind the eyes", "Dengue"),
+    ("always thirsty, urinating a lot, unexplained weight loss, tired all the time", "Diabetes"),
+    ("painful lump near the anus, bleeding during bowel movements, discomfort sitting", "Dimorphic Hemorrhoids"),
+    ("skin rash and itching that started right after starting a new tablet", "Drug Reaction"),
+    ("ring-shaped itchy rash on the skin, flaky patches that won't go away", "Fungal Infection"),
+    ("watery loose motions, stomach cramps, mild fever, feeling dehydrated", "Gastroenteritis"),
+    ("burning sensation in the chest after meals, sour taste rising in the throat", "Gastroesophageal Reflux Disease"),
+    ("crushing chest pressure, sweating heavily, pain shooting down the left arm", "Heart Attack"),
+    ("sudden nausea and fatigue, mild fever, slight yellowing of the eyes, short-lived", "Hepatitis A"),
+    ("long-standing fatigue, joint pain, dark urine, yellowing skin, history of exposure", "Hepatitis B"),
+    ("chronic tiredness, mild abdominal discomfort, gradually worsening jaundice", "Hepatitis C"),
+    ("sudden worsening of existing liver disease, jaundice, severe fatigue", "Hepatitis D"),
+    ("acute jaundice and nausea in a pregnant woman, contaminated water exposure", "Hepatitis E"),
+    ("frequent headaches, chest discomfort, consistently high blood pressure readings", "Hypertension"),
+    ("racing heartbeat, unexplained weight loss, sweating, hand tremors", "Hyperthyroidism"),
+    ("shakiness, cold sweats, confusion, hunger between meals, low blood sugar reading", "Hypoglycemia"),
+    ("constant tiredness, weight gain, feeling cold all the time, dry skin", "Hypothyroidism"),
+    ("honey-colored crusty sores around the mouth and nose, mildly itchy", "Impetigo"),
+    ("yellow tint to the skin and eyes, dark-colored urine, general weakness", "Jaundice"),
+    ("recurring bouts of high fever with chills and sweating every couple of days", "Malaria"),
+    ("throbbing one-sided headache, nausea, can't stand bright light", "Migraine"),
+    ("knee and hip pain that's worse after activity, stiffness that eases with movement", "Osteoarthritis"),
+    ("sudden weakness down one side of the body, difficulty speaking, severe headache", "Paralysis (Brain Hemorrhage)"),
+    ("gnawing pain in the upper stomach that worsens on an empty stomach", "Peptic Ulcer Disease"),
+    ("high fever with chills, cough with phlegm, sharp pain on breathing in", "Pneumonia"),
+    ("thick silvery scaly patches on the skin, itching, worse on elbows and scalp", "Psoriasis"),
+    ("cough lasting for weeks, coughing up blood-tinged sputum, night sweats, weight loss", "Tuberculosis"),
+    ("prolonged fever that steps up gradually day by day, stomach pain, weakness", "Typhoid"),
+    ("stinging pain while urinating, needing to urinate often, cloudy urine", "Urinary Tract Infection"),
+    ("bulging, twisted veins visible under the skin on the legs, heaviness by evening", "Varicose Veins"),
+    ("spinning sensation when turning the head, brief episodes, mild nausea", "Vertigo (Benign Paroxysmal Positional)"),
 ]
 
 
@@ -169,6 +207,26 @@ def main():
     test_acc, test_rows = evaluate(client, embedder, test_df)
     print(f"70:30 split test accuracy (k={K}): {test_acc:.3f}")
 
+    # --- Per-class precision/recall/F1 on the split test set ---
+    # Raw accuracy alone hides class imbalance: several CRITICAL-urgency
+    # diseases (Heart Attack=10, AIDS=9, Paralysis=9 total examples) have far
+    # fewer training examples than common LOW/MEDIUM ones (Chicken Pox=118,
+    # Diabetes=118), so a high overall accuracy could still mask the model
+    # doing poorly on exactly the cases where a miss is most dangerous.
+    y_true = [r["expected"] for r in test_rows]
+    y_pred = [r["predicted"] for r in test_rows]
+    per_class_report = classification_report(
+        y_true, y_pred, zero_division=0, output_dict=True
+    )
+    print("\n=== Per-class precision / recall / F1 (70:30 split test set) ===")
+    print(f"{'Disease':38s} | {'Prec':>6} | {'Recall':>6} | {'F1':>6} | {'Support':>7}")
+    for disease, m in sorted(per_class_report.items(), key=lambda kv: kv[1].get("support", 0) if isinstance(kv[1], dict) else 0):
+        if disease in ("accuracy", "macro avg", "weighted avg"):
+            continue
+        print(f"{disease:38s} | {m['precision']:6.2f} | {m['recall']:6.2f} | {m['f1-score']:6.2f} | {int(m['support']):7d}")
+    macro = per_class_report["macro avg"]
+    print(f"{'MACRO AVG (unweighted across classes)':38s} | {macro['precision']:6.2f} | {macro['recall']:6.2f} | {macro['f1-score']:6.2f} |")
+
     holdout_acc, holdout_rows = evaluate(client, embedder, holdout)
     print(f"Untouched holdout accuracy (k={K}): {holdout_acc:.3f}")
 
@@ -182,6 +240,7 @@ def main():
     with open("semantic_eval_results.json", "w") as f:
         json.dump({
             "split_test_accuracy": test_acc,
+            "split_test_per_class_report": per_class_report,
             "holdout_accuracy": holdout_acc,
             "paraphrase_accuracy": para_acc,
             "paraphrase_rows": para_rows,

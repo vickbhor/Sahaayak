@@ -37,8 +37,41 @@ def display_metrics():
         predicted = row['predicted']
         
         print(f"  {status} | Expected: {expected:<24} | Predicted: {predicted}")
-        
-    print("="*70 + "\n")
+
+    per_class = data.get('split_test_per_class_report')
+    if per_class:
+        print("-" * 70)
+        print(" 📊 PER-CLASS PRECISION / RECALL / F1 (70:30 split test set):\n")
+        print(f"  {'Disease':38s} | {'Prec':>6} | {'Recall':>6} | {'F1':>6} | {'Support':>7}")
+        for disease, m in sorted(per_class.items(), key=lambda kv: kv[1].get("support", 0) if isinstance(kv[1], dict) else 0):
+            if disease in ("accuracy", "macro avg", "weighted avg"):
+                continue
+            print(f"  {disease:38s} | {m['precision']:6.2f} | {m['recall']:6.2f} | {m['f1-score']:6.2f} | {int(m['support']):7d}")
+        macro = per_class.get("macro avg")
+        if macro:
+            print(f"  {'MACRO AVG':38s} | {macro['precision']:6.2f} | {macro['recall']:6.2f} | {macro['f1-score']:6.2f} |")
+
+    print("="*70)
+
+    e2e_path = "end_to_end_eval_results.json"
+    if os.path.exists(e2e_path):
+        with open(e2e_path, "r") as f:
+            e2e = json.load(f)
+        print("\n" + "="*70)
+        print(" 🔗 END-TO-END PIPELINE (retrieval + Groq verification) 🔗".center(70))
+        print("="*70)
+        for set_name, label in [("split_test", "70:30 split test"), ("holdout", "Holdout"), ("paraphrase", "Paraphrase (41 cases)")]:
+            if set_name in e2e:
+                acc = e2e[set_name]["accuracy"] * 100
+                ovr = e2e[set_name]["override_rate"] * 100
+                print(f" 🔹 {label:<20} : accuracy {acc:6.2f}% | verification-capped {ovr:5.1f}%")
+        print("="*70 + "\n")
+    else:
+        print(
+            "\nℹ️  No end-to-end results found. Run 'python evaluate_end_to_end.py' "
+            "(after build_semantic_index.py) to evaluate the full pipeline, not just "
+            "the retrieval layer.\n"
+        )
 
 if __name__ == "__main__":
     display_metrics()

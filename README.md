@@ -3,7 +3,7 @@
 > **An intelligent triage assistant designed to meet patients in the language they actually speak — Hindi, English, or the Hinglish in between.**
 
 [![Python](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![React](https://img.shields.io/badge/react-18-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![React](https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![OpenSearch](https://img.shields.io/badge/OpenSearch-k--NN-005EB8?logo=opensearch&logoColor=white)](https://opensearch.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
@@ -77,13 +77,38 @@ Built with a user-centric design approach, Sahaayak assumes the burden of transl
 
 | Domain | Technology / Tool |
 | --- | --- |
-| **Frontend** | React 18, React Router, Axios, jsPDF, lucide-react |
+| **Frontend** | React 19, React Router, Axios, jsPDF, lucide-react |
 | **Backend** | FastAPI, Uvicorn, Pydantic, email-validator |
 | **AI & LLM** | Groq (Llama 3.3 70B Versatile) |
 | **Search & Retrieval** | OpenSearch (k-NN), HuggingFace Sentence-Transformers |
 | **Authentication** | JWT, PBKDF2-SHA256 password hashing |
 | **Database** | SQLite |
 | **Geospatial Data** | OpenStreetMap (Overpass API + Nominatim) |
+
+---
+
+## 📊 Model Evaluation & Tuning
+
+The k-NN symptom classifier is evaluated automatically every time the index is built — there's no separate step to remember.
+
+Running `build_semantic_index.py` reports:
+
+* **70:30 split accuracy** and **untouched holdout accuracy** — standard generalization checks.
+* **Per-class precision / recall / F1** on the 70:30 split, printed to console and saved in `semantic_eval_results.json`. Raw accuracy alone can hide class imbalance — several CRITICAL-urgency diseases (Heart Attack, AIDS, Paralysis) have far fewer training examples than common ones, so this breaks the aggregate number down by disease instead of relying on one blended figure.
+* **Paraphrase accuracy** — 41 hand-written, differently-worded symptom descriptions, one per disease class (up from an earlier 12-case set covering only a third of the classes), that never appear in training data. Used to sanity-check that the model generalizes to real-world phrasing rather than memorizing exact wording, and now gives full-coverage, per-class signal instead of a small sample with a wide confidence interval.
+* **K-sweep comparison** — the same index is queried at `K = 3, 5, 7, 9` (in addition to whatever `SEMANTIC_K` is set to) so you can see which K value gives the best paraphrase accuracy *without re-embedding or re-indexing*, since K is a query-time parameter only. Pick the best-performing K and set it permanently via `SEMANTIC_K` in `.env`.
+
+This run is deterministic (fixed `random_state` for the train/test split) and safe to re-run as many times as needed — it overwrites `semantic_eval_results.json` and the OpenSearch index in place rather than accumulating files or duplicate indices.
+
+**End-to-end pipeline evaluation:** the eval above only measures the raw k-NN retrieval layer. To evaluate the *full* pipeline — retrieval + Groq LLM verification + red-flag escalation, i.e. exactly what a live request goes through — run:
+
+```bash
+python evaluate_end_to_end.py
+```
+
+after `build_semantic_index.py` (it reuses the already-built index and the same held-out rows). This requires `GROQ_API_KEY` to be set, since it makes real verification calls. It reports end-to-end accuracy on all three eval sets plus a **verification override rate** — how often the Groq step actually changed the retrieval layer's top prediction — and writes `end_to_end_eval_results.json`. `view_metrics.py` will pick this file up automatically if it exists alongside `semantic_eval_results.json`.
+
+Known limitation: a handful of diseases with genuinely overlapping symptom profiles (e.g. Typhoid vs. Malaria, Bronchial Asthma vs. Heart Attack, Jaundice vs. Hepatitis B) are harder to separate on symptom text alone and are documented as an open limitation rather than papered over.
 
 ---
 
@@ -124,16 +149,17 @@ Before you begin, ensure you have the following installed:
     # Install Dependencies
     pip install -r requirements.txt
 
-* Create a `.env` file in the `backend/` directory (refer to `.env.example`) and add your `GROQ_API_KEY` and database configurations.
+* Copy `.env.example` to `.env` in the `backend/` directory and fill in your own `GROQ_API_KEY`, `JWT_SECRET`, and OpenSearch credentials. **Never commit `.env` itself** — it's already covered by `.gitignore`; only `.env.example` (with blank values) should be tracked in git.
 
 * **Build the Semantic Index:** Navigate to the scripts folder to train the model and populate OpenSearch.
     ```bash
     cd ../sementic/scripts
     python build_semantic_index.py
     ```
+    This single command builds the index **and** prints the full evaluation report described above (split/holdout/paraphrase accuracy + K-sweep table) — no separate step needed.
 
 * **📊 View AI Performance Metrics (Optional but highly recommended!):**
-  Want to see how accurate our AI model is? Run the evaluation script to get a detailed terminal report of our Train/Test split, unseen data accuracy, and real-world paraphrase handling.
+  Want to revisit the accuracy report without rebuilding the index? Run:
     ```bash
     python view_metrics.py
     ```
@@ -167,16 +193,17 @@ Before you begin, ensure you have the following installed:
     │   ├── groq_helpers.py            # Conversation, reasoning extractor & verification
     │   ├── hospitals.py               # OpenStreetMap hospital search integration
     │   ├── models/                    # ML model artifacts (hingrobert_model)
-    │   ├── .env.example               # Environment variables template
+    │   ├── .env.example               # Environment variables template (no real secrets — copy to .env and fill in)
     │   ├── SETUP.md                   # Detailed setup instructions
     │   └── requirements.txt           # Python dependencies (incl. email-validator)
     ├── sementic/
     │   └── scripts/
-    │       ├── build_semantic_index.py    # Script to populate the vector database
-    │       ├── view_metrics.py            # Generates AI accuracy & performance reports
+    │       ├── build_semantic_index.py    # Builds the vector index + prints accuracy/per-class/K-sweep report
+    │       ├── evaluate_end_to_end.py     # Evaluates the full pipeline (retrieval + Groq verification + red-flag escalation)
+    │       ├── view_metrics.py            # Re-displays the last AI accuracy & performance report (retrieval-only + end-to-end, if run)
     │       ├── embedder.py                # Multilingual embedding generation
     │       ├── docker-compose.yml         # OpenSearch container configuration
-    │       └── phase1_artifacts/          # Raw dataset and labels
+    │       └── phase1_artifacts/          # Training pool (cv_pool*.csv), holdout set, and disease labels
     └── frontend/
         └── src/
             ├── pages/                 # Landing, Login, Signup, Dashboard, Consultation, ReportDetail

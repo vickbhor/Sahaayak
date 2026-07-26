@@ -1,89 +1,553 @@
 {
   "split_test_accuracy": 0.953939393939394,
+  "split_test_per_class_report": {
+    "AIDS": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3.0
+    },
+    "Acne": {
+      "precision": 0.8888888888888888,
+      "recall": 0.9411764705882353,
+      "f1-score": 0.9142857142857143,
+      "support": 17.0
+    },
+    "Alcoholic Hepatitis": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 5.0
+    },
+    "Allergy": {
+      "precision": 1.0,
+      "recall": 0.96875,
+      "f1-score": 0.9841269841269841,
+      "support": 32.0
+    },
+    "Arthritis": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 32.0
+    },
+    "Bronchial Asthma": {
+      "precision": 0.9705882352941176,
+      "recall": 1.0,
+      "f1-score": 0.9850746268656716,
+      "support": 33.0
+    },
+    "Cervical Spondylosis": {
+      "precision": 0.9705882352941176,
+      "recall": 1.0,
+      "f1-score": 0.9850746268656716,
+      "support": 33.0
+    },
+    "Chicken Pox": {
+      "precision": 0.7619047619047619,
+      "recall": 0.9142857142857143,
+      "f1-score": 0.8311688311688312,
+      "support": 35.0
+    },
+    "Chronic Cholestasis": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 5.0
+    },
+    "Common Cold": {
+      "precision": 0.9696969696969697,
+      "recall": 0.9142857142857143,
+      "f1-score": 0.9411764705882353,
+      "support": 35.0
+    },
+    "Dengue": {
+      "precision": 0.9285714285714286,
+      "recall": 0.7428571428571429,
+      "f1-score": 0.8253968253968254,
+      "support": 35.0
+    },
+    "Diabetes": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 35.0
+    },
+    "Dimorphic Hemorrhoids": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 14.0
+    },
+    "Drug Reaction": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 32.0
+    },
+    "Fungal Infection": {
+      "precision": 0.9393939393939394,
+      "recall": 1.0,
+      "f1-score": 0.96875,
+      "support": 31.0
+    },
+    "Gastroenteritis": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3.0
+    },
+    "Gastroesophageal Reflux Disease": {
+      "precision": 1.0,
+      "recall": 0.9666666666666667,
+      "f1-score": 0.9830508474576272,
+      "support": 30.0
+    },
+    "Heart Attack": {
+      "precision": 1.0,
+      "recall": 0.6666666666666666,
+      "f1-score": 0.8,
+      "support": 3.0
+    },
+    "Hepatitis A": {
+      "precision": 1.0,
+      "recall": 0.8,
+      "f1-score": 0.8888888888888888,
+      "support": 5.0
+    },
+    "Hepatitis B": {
+      "precision": 1.0,
+      "recall": 0.8,
+      "f1-score": 0.8888888888888888,
+      "support": 5.0
+    },
+    "Hepatitis C": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 4.0
+    },
+    "Hepatitis D": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 6.0
+    },
+    "Hepatitis E": {
+      "precision": 0.7142857142857143,
+      "recall": 1.0,
+      "f1-score": 0.8333333333333334,
+      "support": 5.0
+    },
+    "Hypertension": {
+      "precision": 0.9142857142857143,
+      "recall": 0.9696969696969697,
+      "f1-score": 0.9411764705882353,
+      "support": 33.0
+    },
+    "Hyperthyroidism": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 5.0
+    },
+    "Hypoglycemia": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 5.0
+    },
+    "Hypothyroidism": {
+      "precision": 1.0,
+      "recall": 0.8,
+      "f1-score": 0.8888888888888888,
+      "support": 5.0
+    },
+    "Impetigo": {
+      "precision": 0.9696969696969697,
+      "recall": 0.9411764705882353,
+      "f1-score": 0.9552238805970149,
+      "support": 34.0
+    },
+    "Jaundice": {
+      "precision": 0.9032258064516129,
+      "recall": 1.0,
+      "f1-score": 0.9491525423728814,
+      "support": 28.0
+    },
+    "Malaria": {
+      "precision": 0.8918918918918919,
+      "recall": 1.0,
+      "f1-score": 0.9428571428571428,
+      "support": 33.0
+    },
+    "Migraine": {
+      "precision": 1.0,
+      "recall": 0.9696969696969697,
+      "f1-score": 0.9846153846153847,
+      "support": 33.0
+    },
+    "Osteoarthritis": {
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1-score": 0.6666666666666666,
+      "support": 2.0
+    },
+    "Paralysis (Brain Hemorrhage)": {
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "f1-score": 0.6666666666666666,
+      "support": 3.0
+    },
+    "Peptic Ulcer Disease": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 31.0
+    },
+    "Pneumonia": {
+      "precision": 0.9705882352941176,
+      "recall": 0.9705882352941176,
+      "f1-score": 0.9705882352941176,
+      "support": 34.0
+    },
+    "Psoriasis": {
+      "precision": 0.9393939393939394,
+      "recall": 0.9117647058823529,
+      "f1-score": 0.9253731343283582,
+      "support": 34.0
+    },
+    "Tuberculosis": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 5.0
+    },
+    "Typhoid": {
+      "precision": 0.967741935483871,
+      "recall": 0.8823529411764706,
+      "f1-score": 0.9230769230769231,
+      "support": 34.0
+    },
+    "Urinary Tract Infection": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 32.0
+    },
+    "Varicose Veins": {
+      "precision": 1.0,
+      "recall": 0.9411764705882353,
+      "f1-score": 0.9696969696969697,
+      "support": 34.0
+    },
+    "Vertigo (Benign Paroxysmal Positional)": {
+      "precision": 0.6666666666666666,
+      "recall": 1.0,
+      "f1-score": 0.8,
+      "support": 2.0
+    },
+    "accuracy": 0.953939393939394,
+    "macro avg": {
+      "precision": 0.9520506341258875,
+      "recall": 0.9333611659741503,
+      "f1-score": 0.9369072913052664,
+      "support": 825.0
+    },
+    "weighted avg": {
+      "precision": 0.9575860237243712,
+      "recall": 0.953939393939394,
+      "f1-score": 0.9537736099390596,
+      "support": 825.0
+    }
+  },
   "holdout_accuracy": 0.975609756097561,
-  "paraphrase_accuracy": 0.6666666666666666,
+  "paraphrase_accuracy": 0.4634146341463415,
   "paraphrase_rows": [
     {
-      "input": "high fever, headache, body ache, chills, nausea",
-      "expected": "Typhoid",
-      "predicted": "Malaria",
-      "confidence": 1.0,
-      "match": false
-    },
-    {
-      "input": "high fever, joint pain, rash, pain behind the eyes, vomiting",
-      "expected": "Dengue",
-      "predicted": "Dengue",
-      "confidence": 0.6,
-      "match": true
-    },
-    {
-      "input": "chest pain, sweating, breathlessness, pain radiating to left arm",
-      "expected": "Heart Attack",
-      "predicted": "Malaria",
+      "input": "severe muscle wasting, chronic diarrhea, recurring infections, very low immunity",
+      "expected": "AIDS",
+      "predicted": "Jaundice",
       "confidence": 0.8,
       "match": false
     },
     {
-      "input": "cyclical fever, chills, sweating, headache, nausea",
-      "expected": "Malaria",
-      "predicted": "Malaria",
+      "input": "blackheads and whiteheads on face, oily skin, occasional painful pimples",
+      "expected": "Acne",
+      "predicted": "Acne",
       "confidence": 1.0,
       "match": true
     },
     {
-      "input": "cough, runny nose, sneezing, mild fever, sore throat",
-      "expected": "Common Cold",
-      "predicted": "Common Cold",
+      "input": "swollen belly, yellowish eyes, loss of appetite after years of heavy drinking",
+      "expected": "Alcoholic Hepatitis",
+      "predicted": "Migraine",
+      "confidence": 0.8,
+      "match": false
+    },
+    {
+      "input": "sneezing fits, itchy watery eyes, runny nose after being near dust or pollen",
+      "expected": "Allergy",
+      "predicted": "Allergy",
       "confidence": 1.0,
       "match": true
     },
     {
-      "input": "wheezing, breathlessness, chest tightness, cough",
+      "input": "stiff and swollen finger joints, worse in the morning, painful to grip things",
+      "expected": "Arthritis",
+      "predicted": "Psoriasis",
+      "confidence": 1.0,
+      "match": false
+    },
+    {
+      "input": "tight chest, whistling sound while breathing, breathless after light exertion",
       "expected": "Bronchial Asthma",
       "predicted": "Heart Attack",
       "confidence": 0.4,
       "match": false
     },
     {
-      "input": "yellowing of skin, yellowing of eyes, dark urine, fatigue",
-      "expected": "Jaundice",
-      "predicted": "Hepatitis B",
-      "confidence": 0.6,
-      "match": false
-    },
-    {
-      "input": "burning urination, frequent urination, lower abdominal pain",
-      "expected": "Urinary Tract Infection",
-      "predicted": "Urinary Tract Infection",
+      "input": "stiff neck, tingling down the arm, dull ache at the back of the head",
+      "expected": "Cervical Spondylosis",
+      "predicted": "Cervical Spondylosis",
       "confidence": 0.8,
       "match": true
     },
     {
-      "input": "throbbing headache, nausea, sensitivity to light",
-      "expected": "Migraine",
-      "predicted": "Migraine",
+      "input": "itchy fluid-filled blisters all over the body, mild fever, came on over a day",
+      "expected": "Chicken Pox",
+      "predicted": "Impetigo",
+      "confidence": 1.0,
+      "match": false
+    },
+    {
+      "input": "persistent itching all over the body, pale stools, yellow-tinted skin",
+      "expected": "Chronic Cholestasis",
+      "predicted": "Fungal Infection",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "blocked nose, mild throat irritation, sneezing, no high fever",
+      "expected": "Common Cold",
+      "predicted": "Common Cold",
       "confidence": 1.0,
       "match": true
     },
     {
-      "input": "itching, skin rash, red spots, dischromic patches",
+      "input": "sudden high fever, severe joint and muscle pain, rash, pain behind the eyes",
+      "expected": "Dengue",
+      "predicted": "Dengue",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "always thirsty, urinating a lot, unexplained weight loss, tired all the time",
+      "expected": "Diabetes",
+      "predicted": "Diabetes",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "painful lump near the anus, bleeding during bowel movements, discomfort sitting",
+      "expected": "Dimorphic Hemorrhoids",
+      "predicted": "Dimorphic Hemorrhoids",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "skin rash and itching that started right after starting a new tablet",
+      "expected": "Drug Reaction",
+      "predicted": "Fungal Infection",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "ring-shaped itchy rash on the skin, flaky patches that won't go away",
       "expected": "Fungal Infection",
       "predicted": "Fungal Infection",
       "confidence": 1.0,
       "match": true
     },
     {
-      "input": "persistent cough, weight loss, night sweats, blood in sputum",
-      "expected": "Tuberculosis",
-      "predicted": "Tuberculosis",
+      "input": "watery loose motions, stomach cramps, mild fever, feeling dehydrated",
+      "expected": "Gastroenteritis",
+      "predicted": "Malaria",
+      "confidence": 0.8,
+      "match": false
+    },
+    {
+      "input": "burning sensation in the chest after meals, sour taste rising in the throat",
+      "expected": "Gastroesophageal Reflux Disease",
+      "predicted": "Gastroesophageal Reflux Disease",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "crushing chest pressure, sweating heavily, pain shooting down the left arm",
+      "expected": "Heart Attack",
+      "predicted": "Heart Attack",
+      "confidence": 0.2,
+      "match": true
+    },
+    {
+      "input": "sudden nausea and fatigue, mild fever, slight yellowing of the eyes, short-lived",
+      "expected": "Hepatitis A",
+      "predicted": "Hepatitis C",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "long-standing fatigue, joint pain, dark urine, yellowing skin, history of exposure",
+      "expected": "Hepatitis B",
+      "predicted": "Hepatitis D",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "chronic tiredness, mild abdominal discomfort, gradually worsening jaundice",
+      "expected": "Hepatitis C",
+      "predicted": "Typhoid",
+      "confidence": 1.0,
+      "match": false
+    },
+    {
+      "input": "sudden worsening of existing liver disease, jaundice, severe fatigue",
+      "expected": "Hepatitis D",
+      "predicted": "Hepatitis E",
+      "confidence": 0.8,
+      "match": false
+    },
+    {
+      "input": "acute jaundice and nausea in a pregnant woman, contaminated water exposure",
+      "expected": "Hepatitis E",
+      "predicted": "Gastroenteritis",
+      "confidence": 0.4,
+      "match": false
+    },
+    {
+      "input": "frequent headaches, chest discomfort, consistently high blood pressure readings",
+      "expected": "Hypertension",
+      "predicted": "Hypertension",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "racing heartbeat, unexplained weight loss, sweating, hand tremors",
+      "expected": "Hyperthyroidism",
+      "predicted": "Hyperthyroidism",
+      "confidence": 0.6,
+      "match": true
+    },
+    {
+      "input": "shakiness, cold sweats, confusion, hunger between meals, low blood sugar reading",
+      "expected": "Hypoglycemia",
+      "predicted": "Diabetes",
+      "confidence": 1.0,
+      "match": false
+    },
+    {
+      "input": "constant tiredness, weight gain, feeling cold all the time, dry skin",
+      "expected": "Hypothyroidism",
+      "predicted": "Diabetes",
+      "confidence": 0.8,
+      "match": false
+    },
+    {
+      "input": "honey-colored crusty sores around the mouth and nose, mildly itchy",
+      "expected": "Impetigo",
+      "predicted": "Impetigo",
       "confidence": 0.8,
       "match": true
     },
     {
-      "input": "excessive thirst, frequent urination, fatigue, blurred vision",
-      "expected": "Diabetes",
-      "predicted": "Diabetes",
+      "input": "yellow tint to the skin and eyes, dark-colored urine, general weakness",
+      "expected": "Jaundice",
+      "predicted": "Hepatitis B",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "recurring bouts of high fever with chills and sweating every couple of days",
+      "expected": "Malaria",
+      "predicted": "Malaria",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "throbbing one-sided headache, nausea, can't stand bright light",
+      "expected": "Migraine",
+      "predicted": "Migraine",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "knee and hip pain that's worse after activity, stiffness that eases with movement",
+      "expected": "Osteoarthritis",
+      "predicted": "Arthritis",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "sudden weakness down one side of the body, difficulty speaking, severe headache",
+      "expected": "Paralysis (Brain Hemorrhage)",
+      "predicted": "Hypertension",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "gnawing pain in the upper stomach that worsens on an empty stomach",
+      "expected": "Peptic Ulcer Disease",
+      "predicted": "Gastroesophageal Reflux Disease",
+      "confidence": 0.4,
+      "match": false
+    },
+    {
+      "input": "high fever with chills, cough with phlegm, sharp pain on breathing in",
+      "expected": "Pneumonia",
+      "predicted": "Malaria",
+      "confidence": 0.6,
+      "match": false
+    },
+    {
+      "input": "thick silvery scaly patches on the skin, itching, worse on elbows and scalp",
+      "expected": "Psoriasis",
+      "predicted": "Psoriasis",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "cough lasting for weeks, coughing up blood-tinged sputum, night sweats, weight loss",
+      "expected": "Tuberculosis",
+      "predicted": "Bronchial Asthma",
+      "confidence": 1.0,
+      "match": false
+    },
+    {
+      "input": "prolonged fever that steps up gradually day by day, stomach pain, weakness",
+      "expected": "Typhoid",
+      "predicted": "Malaria",
+      "confidence": 1.0,
+      "match": false
+    },
+    {
+      "input": "stinging pain while urinating, needing to urinate often, cloudy urine",
+      "expected": "Urinary Tract Infection",
+      "predicted": "Urinary Tract Infection",
+      "confidence": 0.8,
+      "match": true
+    },
+    {
+      "input": "bulging, twisted veins visible under the skin on the legs, heaviness by evening",
+      "expected": "Varicose Veins",
+      "predicted": "Varicose Veins",
+      "confidence": 1.0,
+      "match": true
+    },
+    {
+      "input": "spinning sensation when turning the head, brief episodes, mild nausea",
+      "expected": "Vertigo (Benign Paroxysmal Positional)",
+      "predicted": "Vertigo (Benign Paroxysmal Positional)",
       "confidence": 0.8,
       "match": true
     }

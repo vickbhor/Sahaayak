@@ -1,5 +1,7 @@
 import os
 import json
+import re
+import asyncio
 from typing import List
 from groq import AsyncGroq
 from dotenv import load_dotenv
@@ -16,18 +18,22 @@ def convert_messages_for_llm(messages) -> List[dict]:
 
 
 async def get_ai_response(messages, system_prompt: str) -> str:
-    try:
-        groq_messages = convert_messages_for_llm(messages)
-        response = await groq_client.chat.completions.create(
-            messages=[{"role": "system", "content": system_prompt}] + groq_messages,
-            model=GROQ_MODEL,
-            temperature=0.7,
-            max_tokens=200,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"Groq Error: {e}")
-        return "I'm having trouble understanding. Could you tell me more about your symptoms?"
+    groq_messages = convert_messages_for_llm(messages)
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[{"role": "system", "content": system_prompt}] + groq_messages,
+                model=GROQ_MODEL,
+                temperature=0.7,
+                max_tokens=200,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Error: {e}")
+            return "I'm having trouble understanding. Could you tell me more about your symptoms?"
 
 
 async def extract_symptoms_with_groq(messages, previous_condition: str = "") -> str:
@@ -49,41 +55,27 @@ Translate Hindi/Hinglish symptoms to clear English medical terms.
 Return ONLY a comma-separated list of symptoms. NO extra text. If no symptoms found, return "none"
 Example output: High fever, severe headache, body ache{history_line}"""
 
-    try:
-        response = await groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": conversation_text},
-            ],
-            model=GROQ_MODEL,
-            temperature=0.1,
-            max_tokens=150,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"Groq Error: {e}")
-        return "none"
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": conversation_text},
+                ],
+                model=GROQ_MODEL,
+                temperature=0.1,
+                max_tokens=150,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Error: {e}")
+            return "none"
 
 
 async def assess_conversation_readiness(messages) -> dict:
-    """
-    Judges whether a patient/AI health conversation has enough concrete
-    information for a doctor to form a triage assessment - the same way a
-    real clinician mentally checks off chief complaint, duration, severity,
-    associated symptoms, etc. before concluding a consult.
-
-    Returns a dict:
-        {
-            "ready": bool,
-            "missing": [str, ...],       # e.g. ["duration", "severity"]
-            "next_question": str,        # targeted follow-up if not ready, else ""
-        }
-
-    This does NOT decide by itself when to run - callers are expected to only
-    invoke it between a MIN and MAX turn count, so cheap/early turns skip the
-    extra Groq call entirely and long-running ones don't hang forever waiting
-    for a "perfect" verdict.
-    """
     default_not_ready = {"ready": False, "missing": [], "next_question": ""}
 
     conversation_text = "\n".join(
@@ -123,30 +115,32 @@ exactly this shape:
 {"ready": true or false, "missing": ["..."], "next_question": "..."}
 When ready is true, "missing" and "next_question" should be empty ([] and "")."""
 
-    try:
-        response = await groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": conversation_text},
-            ],
-            model=GROQ_MODEL,
-            temperature=0,
-            max_tokens=200,
-            response_format={"type": "json_object"},
-        )
-        raw = response.choices[0].message.content.strip()
-        parsed = json.loads(raw)
-        return {
-            "ready": bool(parsed.get("ready", False)),
-            "missing": parsed.get("missing", []) or [],
-            "next_question": parsed.get("next_question", "") or "",
-        }
-    except Exception as e:
-        print(f"Groq Readiness Error: {e}")
-        return default_not_ready
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": conversation_text},
+                ],
+                model=GROQ_MODEL,
+                temperature=0,
+                max_tokens=200,
+                response_format={"type": "json_object"},
+            )
+            raw = response.choices[0].message.content.strip()
+            parsed = json.loads(raw)
+            return {
+                "ready": bool(parsed.get("ready", False)),
+                "missing": parsed.get("missing", []) or [],
+                "next_question": parsed.get("next_question", "") or "",
+            }
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Readiness Error: {e}")
+            return default_not_ready
 
-
-import re
 
 IMPOSSIBLE_LOCATION_TERMS = [
     "mars", "moon", "jupiter", "saturn", "venus", "pluto", "neptune", "uranus",
@@ -160,21 +154,6 @@ _IMPOSSIBLE_LOCATION_PATTERN = re.compile(
 
 
 async def check_input_plausibility(latest_message: str, previous_bot_question: str = "") -> dict:
-    """
-    Two-level sanity check that runs BEFORE the main conversational reply is
-    generated. Catches physically impossible, joke, or off-topic answers
-    (e.g. "I'm on Mars") so the main assistant never gets a chance to build
-    an elaborate, escalating response on top of a fake premise.
-
-    Level 1 - deterministic keyword check (instant, free, 100% reliable for
-    the obvious cases like celestial bodies/space). Runs first so we don't
-    even spend an LLM call on the clearest cases.
-
-    Level 2 - a separate, cheap, low-token LLM classification call for
-    everything else. A dedicated check like this is far more reliable than
-    hoping one line buried in a big conversational system prompt gets
-    followed on every single turn.
-    """
     text = (latest_message or "").lower()
     if _IMPOSSIBLE_LOCATION_PATTERN.search(text):
         return {"plausible": False, "level": "rule"}
@@ -200,22 +179,26 @@ Respond with exactly one word: PLAUSIBLE or IMPLAUSIBLE."""
         f'Patient\'s reply: "{latest_message}"'
     )
 
-    try:
-        response = await groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            model=GROQ_MODEL,
-            temperature=0,
-            max_tokens=5,
-        )
-        verdict = response.choices[0].message.content.strip().upper()
-        is_plausible = not verdict.startswith("IMPLAUSIBLE")
-        return {"plausible": is_plausible, "level": "llm"}
-    except Exception as e:
-        print(f"Groq Plausibility Check Error: {e}")
-        return {"plausible": True, "level": "llm_error"}
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=GROQ_MODEL,
+                temperature=0,
+                max_tokens=5,
+            )
+            verdict = response.choices[0].message.content.strip().upper()
+            is_plausible = not verdict.startswith("IMPLAUSIBLE")
+            return {"plausible": is_plausible, "level": "llm"}
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Plausibility Check Error: {e}")
+            return {"plausible": True, "level": "llm_error"}
 
 
 def clean_json_block(text: str) -> str:
@@ -279,44 +262,48 @@ Conversation:
 
     empty_result = {"medicines": [], "home_remedies": []}
 
-    try:
-        response = await groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            model=GROQ_MODEL,
-            temperature=0.2,
-            max_tokens=500,
-        )
-        raw = response.choices[0].message.content.strip()
-        cleaned = clean_json_block(raw)
-        parsed = json.loads(cleaned)
-        if not isinstance(parsed, dict):
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=GROQ_MODEL,
+                temperature=0.2,
+                max_tokens=500,
+            )
+            raw = response.choices[0].message.content.strip()
+            cleaned = clean_json_block(raw)
+            parsed = json.loads(cleaned)
+            if not isinstance(parsed, dict):
+                return empty_result
+
+            def clean_list(items):
+                valid = []
+                if not isinstance(items, list):
+                    return valid
+                for item in items:
+                    if isinstance(item, dict) and item.get("name"):
+                        valid.append(
+                            {
+                                "name": str(item.get("name"))[:120],
+                                "purpose": str(item.get("purpose", ""))[:200],
+                                "note": str(item.get("note", ""))[:200],
+                            }
+                        )
+                return valid[:4]
+
+            return {
+                "medicines": clean_list(parsed.get("medicines")),
+                "home_remedies": clean_list(parsed.get("home_remedies")),
+            }
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Medicine Extraction Error: {e}")
             return empty_result
-
-        def clean_list(items):
-            valid = []
-            if not isinstance(items, list):
-                return valid
-            for item in items:
-                if isinstance(item, dict) and item.get("name"):
-                    valid.append(
-                        {
-                            "name": str(item.get("name"))[:120],
-                            "purpose": str(item.get("purpose", ""))[:200],
-                            "note": str(item.get("note", ""))[:200],
-                        }
-                    )
-            return valid[:4]
-
-        return {
-            "medicines": clean_list(parsed.get("medicines")),
-            "home_remedies": clean_list(parsed.get("home_remedies")),
-        }
-    except Exception as e:
-        print(f"Groq Medicine Extraction Error: {e}")
-        return empty_result
 
 
 RED_FLAG_TERMS = [
@@ -378,28 +365,32 @@ symptoms, or loss of bladder/bowel control - these should never be graded LOW.{g
 
     user_prompt = f'Symptoms: "{symptoms_text}"\nPredicted disease: {predicted_disease}\nModel confidence: {confidence:.2f}'
 
-    try:
-        response = await groq_client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            model=GROQ_MODEL,
-            temperature=0,
-            max_tokens=150,
-        )
-        raw = response.choices[0].message.content.strip()
-        cleaned = clean_json_block(raw)
-        parsed = json.loads(cleaned)
-        urgency = str(parsed.get("urgency", "")).upper()
-        if urgency not in URGENCY_RANK:
-            urgency = None
-        return {
-            "confirmed": bool(parsed.get("confirmed", True)),
-            "alternative": parsed.get("alternative"),
-            "urgency": urgency,
-            "reasoning": parsed.get("reasoning", ""),
-        }
-    except Exception as e:
-        print(f"Groq Verification Error: {e}")
-        return {"confirmed": True, "alternative": None, "urgency": None, "reasoning": "verification unavailable"}
+    while True:
+        try:
+            response = await groq_client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model=GROQ_MODEL,
+                temperature=0,
+                max_tokens=150,
+            )
+            raw = response.choices[0].message.content.strip()
+            cleaned = clean_json_block(raw)
+            parsed = json.loads(cleaned)
+            urgency = str(parsed.get("urgency", "")).upper()
+            if urgency not in URGENCY_RANK:
+                urgency = None
+            return {
+                "confirmed": bool(parsed.get("confirmed", True)),
+                "alternative": parsed.get("alternative"),
+                "urgency": urgency,
+                "reasoning": parsed.get("reasoning", ""),
+            }
+        except Exception as e:
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                await asyncio.sleep(510)
+                continue
+            print(f"Groq Verification Error: {e}")
+            return {"confirmed": True, "alternative": None, "urgency": None, "reasoning": "verification unavailable"}
